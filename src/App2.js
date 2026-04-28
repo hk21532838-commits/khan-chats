@@ -468,3 +468,6 @@ export default function App() {
     </div>
   );
 }
+<div style={{ textAlign:"center", padding:"8px", background:"#0b141a", color:"#8696a0", fontSize:12 }}>
+  Made with ❤️ by <span style={{ color:"#25D366", fontWeight:700 }}>Hamza Khan</span>
+</div>
