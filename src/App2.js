@@ -3,6 +3,7 @@ import { initializeApp } from "firebase/app";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, updateProfile } from "firebase/auth";
 import { getDatabase, ref, push, onValue, set, get, serverTimestamp, off } from "firebase/database";
 import Status from './Status';
+import CallHistory, { saveCallToHistory } from './CallHistory';
 
 const firebaseConfig = {
   apiKey: "AIzaSyDJt8Pf6bC938Q9Ufxwj6xSREV0xcQf6_I",
@@ -59,6 +60,8 @@ export default function App() {
   const [inCall, setInCall] = useState(false);
   const [callType, setCallType] = useState(null);
   const [showStatus, setShowStatus] = useState(false);
+  const [showCallHistory, setShowCallHistory] = useState(false);
+  const [callStartTime, setCallStartTime] = useState(null);
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
   const notifRef = useRef(0);
@@ -181,8 +184,11 @@ export default function App() {
     navigator.clipboard.writeText(inviteLink).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
   };
 
-  const startCall = async (type) => {
+  const startCall = async (type, contactOverride = null) => {
+    const contact = contactOverride || activeChat;
+    if (!contact) return;
     setCallType(type); setInCall(true);
+    setCallStartTime(Date.now());
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: type === "video", audio: true });
       localStreamRef.current = stream;
@@ -193,19 +199,40 @@ export default function App() {
       pc.ontrack = (e) => { if (remoteVideoRef.current) remoteVideoRef.current.srcObject = e.streams[0]; };
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
-      await set(ref(db, `calls/${activeChat.chatId}`), { offer: JSON.stringify(offer), caller: user.uid, callerName: user.displayName, type, timestamp: Date.now() });
-      onValue(ref(db, `calls/${activeChat.chatId}/answer`), async (snap) => {
+      await set(ref(db, `calls/${contact.chatId}`), { offer: JSON.stringify(offer), caller: user.uid, callerName: user.displayName, type, timestamp: Date.now() });
+      onValue(ref(db, `calls/${contact.chatId}/answer`), async (snap) => {
         if (snap.val() && pc.signalingState !== "stable") await pc.setRemoteDescription(JSON.parse(snap.val()));
       });
-      pc.onicecandidate = (e) => { if (e.candidate) push(ref(db, `calls/${activeChat.chatId}/callerCandidates`), JSON.stringify(e.candidate)); };
-    } catch (err) { alert("Microphone/Camera access denied: " + err.message); setInCall(false); }
+      pc.onicecandidate = (e) => { if (e.candidate) push(ref(db, `calls/${contact.chatId}/callerCandidates`), JSON.stringify(e.candidate)); };
+
+      // Save to history
+      saveCallToHistory(user.uid, {
+        name: contact.name, contactEmail: contact.email,
+        type, direction: "outgoing", status: "completed",
+        duration: 0,
+      });
+    } catch (err) {
+      alert("Microphone/Camera access denied: " + err.message);
+      setInCall(false);
+      saveCallToHistory(user.uid, {
+        name: contact?.name || "Unknown", contactEmail: contact?.email || "",
+        type, direction: "outgoing", status: "missed", duration: 0,
+      });
+    }
   };
 
   const endCall = () => {
+    const duration = callStartTime ? Math.floor((Date.now() - callStartTime) / 1000) : 0;
     if (localStreamRef.current) localStreamRef.current.getTracks().forEach(t => t.stop());
     if (pcRef.current) pcRef.current.close();
     set(ref(db, `calls/${activeChat?.chatId}`), null);
-    setInCall(false); setCallType(null);
+    if (activeChat) {
+      saveCallToHistory(user.uid, {
+        name: activeChat.name, contactEmail: activeChat.email,
+        type: callType, direction: "outgoing", status: "completed", duration,
+      });
+    }
+    setInCall(false); setCallType(null); setCallStartTime(null);
   };
 
   useEffect(() => {
@@ -214,7 +241,7 @@ export default function App() {
       const data = snap.val();
       if (data && data.caller !== user.uid && data.offer && !inCall) {
         if (window.confirm(`Incoming ${data.type === "video" ? "Video" : "Audio"} call from ${data.callerName}! Answer?`)) {
-          setCallType(data.type); setInCall(true);
+          setCallType(data.type); setInCall(true); setCallStartTime(Date.now());
           try {
             const stream = await navigator.mediaDevices.getUserMedia({ video: data.type === "video", audio: true });
             localStreamRef.current = stream;
@@ -228,7 +255,23 @@ export default function App() {
             await pc.setLocalDescription(answer);
             await set(ref(db, `calls/${activeChat.chatId}/answer`), JSON.stringify(answer));
             pc.onicecandidate = (e) => { if (e.candidate) push(ref(db, `calls/${activeChat.chatId}/calleeCandidates`), JSON.stringify(e.candidate)); };
-          } catch (err) { alert("Could not receive call: " + err.message); setInCall(false); }
+            saveCallToHistory(user.uid, {
+              name: data.callerName, contactEmail: "",
+              type: data.type, direction: "incoming", status: "completed", duration: 0,
+            });
+          } catch (err) {
+            alert("Could not receive call: " + err.message);
+            setInCall(false);
+            saveCallToHistory(user.uid, {
+              name: data.callerName, contactEmail: "",
+              type: data.type, direction: "incoming", status: "missed", duration: 0,
+            });
+          }
+        } else {
+          saveCallToHistory(user.uid, {
+            name: data.callerName, contactEmail: "",
+            type: data.type, direction: "incoming", status: "missed", duration: 0,
+          });
         }
       }
     });
@@ -277,6 +320,7 @@ export default function App() {
   );
 
   if (showStatus) return <Status user={user} onClose={() => setShowStatus(false)} />;
+  if (showCallHistory) return <CallHistory user={user} onClose={() => setShowCallHistory(false)} onCall={(email, type) => { setShowCallHistory(false); const contact = Object.values(contacts).find(c => c.email === email); if (contact) { setActiveChat(contact); startCall(type, contact); }}} />;
 
   return (
     <div style={{ display:"flex", height:"100vh", fontFamily:"'Segoe UI',sans-serif", background:"#111b21", color:"#e9edef", overflow:"hidden", position:"relative" }}>
@@ -351,7 +395,8 @@ export default function App() {
           </div>
           <div style={{ display:"flex", gap:14 }}>
             <span onClick={() => setShowStatus(true)} style={{ cursor:"pointer", fontSize:20 }} title="Status">🔵</span>
-            <span onClick={generateInvite} style={{ cursor:"pointer", fontSize:20 }} title="Invite Friend">🔗</span>
+            <span onClick={() => setShowCallHistory(true)} style={{ cursor:"pointer", fontSize:20 }} title="Call History">📋</span>
+            <span onClick={generateInvite} style={{ cursor:"pointer", fontSize:20 }} title="Invite">🔗</span>
             <span onClick={() => setShowNewChat(!showNewChat)} style={{ cursor:"pointer", fontSize:20 }} title="New Chat">✏️</span>
             <span onClick={logout} style={{ cursor:"pointer", fontSize:20 }} title="Logout">🚪</span>
           </div>
@@ -461,12 +506,9 @@ export default function App() {
             Chat, audio and video call with your friends in real time!
           </p>
           <div style={{ display:"flex", gap:12, flexWrap:"wrap", justifyContent:"center" }}>
-            <div onClick={() => setShowStatus(true)} style={{ padding:"12px 24px", background:"#128C7E", borderRadius:20, color:"#fff", fontWeight:700, cursor:"pointer" }}>
-              🔵 View Status
-            </div>
-            <div onClick={generateInvite} style={{ padding:"12px 24px", background:"#25D366", borderRadius:20, color:"#fff", fontWeight:700, cursor:"pointer" }}>
-              🔗 Invite a Friend
-            </div>
+            <div onClick={() => setShowStatus(true)} style={{ padding:"12px 20px", background:"#128C7E", borderRadius:20, color:"#fff", fontWeight:700, cursor:"pointer" }}>🔵 Status</div>
+            <div onClick={() => setShowCallHistory(true)} style={{ padding:"12px 20px", background:"#075E54", borderRadius:20, color:"#fff", fontWeight:700, cursor:"pointer" }}>📋 Call History</div>
+            <div onClick={generateInvite} style={{ padding:"12px 20px", background:"#25D366", borderRadius:20, color:"#fff", fontWeight:700, cursor:"pointer" }}>🔗 Invite Friend</div>
           </div>
         </div>
       )}
