@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { initializeApp } from "firebase/app";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, updateProfile } from "firebase/auth";
 import { getDatabase, ref, push, onValue, set, get, serverTimestamp, off } from "firebase/database";
+import Status from './Status';
 
 const firebaseConfig = {
   apiKey: "AIzaSyDJt8Pf6bC938Q9Ufxwj6xSREV0xcQf6_I",
@@ -57,6 +58,7 @@ export default function App() {
   const [copied, setCopied] = useState(false);
   const [inCall, setInCall] = useState(false);
   const [callType, setCallType] = useState(null);
+  const [showStatus, setShowStatus] = useState(false);
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
   const notifRef = useRef(0);
@@ -101,7 +103,7 @@ export default function App() {
       const cred = await createUserWithEmailAndPassword(auth, email, password);
       await updateProfile(cred.user, { displayName: displayName.trim() });
     } catch (e) {
-      setAuthError(e.message.includes("email-already") ? "This email is already registered" : e.message.includes("weak") ? "Password must be at least 6 characters" : "Something went wrong, please try again");
+      setAuthError(e.message.includes("email-already") ? "This email is already registered" : e.message.includes("weak") ? "Password must be at least 6 characters" : "Something went wrong");
     }
     setAuthLoading(false);
   };
@@ -274,6 +276,8 @@ export default function App() {
     </div>
   );
 
+  if (showStatus) return <Status user={user} onClose={() => setShowStatus(false)} />;
+
   return (
     <div style={{ display:"flex", height:"100vh", fontFamily:"'Segoe UI',sans-serif", background:"#111b21", color:"#e9edef", overflow:"hidden", position:"relative" }}>
 
@@ -346,6 +350,7 @@ export default function App() {
             </div>
           </div>
           <div style={{ display:"flex", gap:14 }}>
+            <span onClick={() => setShowStatus(true)} style={{ cursor:"pointer", fontSize:20 }} title="Status">🔵</span>
             <span onClick={generateInvite} style={{ cursor:"pointer", fontSize:20 }} title="Invite Friend">🔗</span>
             <span onClick={() => setShowNewChat(!showNewChat)} style={{ cursor:"pointer", fontSize:20 }} title="New Chat">✏️</span>
             <span onClick={logout} style={{ cursor:"pointer", fontSize:20 }} title="Logout">🚪</span>
@@ -455,11 +460,19 @@ export default function App() {
           <p style={{ color:"#8696a0", fontSize:14, textAlign:"center", maxWidth:320, lineHeight:1.7, margin:0 }}>
             Chat, audio and video call with your friends in real time!
           </p>
-          <div onClick={generateInvite} style={{ padding:"12px 24px", background:"#25D366", borderRadius:20, color:"#fff", fontWeight:700, cursor:"pointer" }}>
-            🔗 Invite a Friend
+          <div style={{ display:"flex", gap:12, flexWrap:"wrap", justifyContent:"center" }}>
+            <div onClick={() => setShowStatus(true)} style={{ padding:"12px 24px", background:"#128C7E", borderRadius:20, color:"#fff", fontWeight:700, cursor:"pointer" }}>
+              🔵 View Status
+            </div>
+            <div onClick={generateInvite} style={{ padding:"12px 24px", background:"#25D366", borderRadius:20, color:"#fff", fontWeight:700, cursor:"pointer" }}>
+              🔗 Invite a Friend
+            </div>
           </div>
         </div>
       )}
+      <div style={{ textAlign:"center", padding:"8px", background:"#0b141a", color:"#8696a0", fontSize:12 }}>
+        Made with ❤️ by <span style={{ color:"#25D366", fontWeight:700 }}>Hamza Khan</span>
+      </div>
       <style>{`
         @keyframes slideIn { from { opacity:0; transform:translateX(50px); } to { opacity:1; transform:translateX(0); } }
         ::-webkit-scrollbar { width:5px; } ::-webkit-scrollbar-thumb { background:#2a3942; border-radius:4px; }
@@ -468,6 +481,3 @@ export default function App() {
     </div>
   );
 }
-<div style={{ textAlign:"center", padding:"8px", background:"#0b141a", color:"#8696a0", fontSize:12 }}>
-  Made with ❤️ by <span style={{ color:"#25D366", fontWeight:700 }}>Hamza Khan</span>
-</div>
