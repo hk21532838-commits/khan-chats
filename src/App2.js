@@ -2,8 +2,6 @@ import { useState, useEffect, useRef } from "react";
 import { initializeApp } from "firebase/app";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, updateProfile } from "firebase/auth";
 import { getDatabase, ref, push, onValue, set, get, serverTimestamp, off } from "firebase/database";
-import Status from './Status';
-import CallHistory, { saveCallToHistory } from './CallHistory';
 
 const firebaseConfig = {
   apiKey: "AIzaSyDJt8Pf6bC938Q9Ufxwj6xSREV0xcQf6_I",
@@ -59,9 +57,6 @@ export default function App() {
   const [copied, setCopied] = useState(false);
   const [inCall, setInCall] = useState(false);
   const [callType, setCallType] = useState(null);
-  const [showStatus, setShowStatus] = useState(false);
-  const [showCallHistory, setShowCallHistory] = useState(false);
-  const [callStartTime, setCallStartTime] = useState(null);
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
   const notifRef = useRef(0);
@@ -184,11 +179,8 @@ export default function App() {
     navigator.clipboard.writeText(inviteLink).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
   };
 
-  const startCall = async (type, contactOverride = null) => {
-    const contact = contactOverride || activeChat;
-    if (!contact) return;
+  const startCall = async (type) => {
     setCallType(type); setInCall(true);
-    setCallStartTime(Date.now());
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: type === "video", audio: true });
       localStreamRef.current = stream;
@@ -199,40 +191,19 @@ export default function App() {
       pc.ontrack = (e) => { if (remoteVideoRef.current) remoteVideoRef.current.srcObject = e.streams[0]; };
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
-      await set(ref(db, `calls/${contact.chatId}`), { offer: JSON.stringify(offer), caller: user.uid, callerName: user.displayName, type, timestamp: Date.now() });
-      onValue(ref(db, `calls/${contact.chatId}/answer`), async (snap) => {
+      await set(ref(db, `calls/${activeChat.chatId}`), { offer: JSON.stringify(offer), caller: user.uid, callerName: user.displayName, type, timestamp: Date.now() });
+      onValue(ref(db, `calls/${activeChat.chatId}/answer`), async (snap) => {
         if (snap.val() && pc.signalingState !== "stable") await pc.setRemoteDescription(JSON.parse(snap.val()));
       });
-      pc.onicecandidate = (e) => { if (e.candidate) push(ref(db, `calls/${contact.chatId}/callerCandidates`), JSON.stringify(e.candidate)); };
-
-      // Save to history
-      saveCallToHistory(user.uid, {
-        name: contact.name, contactEmail: contact.email,
-        type, direction: "outgoing", status: "completed",
-        duration: 0,
-      });
-    } catch (err) {
-      alert("Microphone/Camera access denied: " + err.message);
-      setInCall(false);
-      saveCallToHistory(user.uid, {
-        name: contact?.name || "Unknown", contactEmail: contact?.email || "",
-        type, direction: "outgoing", status: "missed", duration: 0,
-      });
-    }
+      pc.onicecandidate = (e) => { if (e.candidate) push(ref(db, `calls/${activeChat.chatId}/callerCandidates`), JSON.stringify(e.candidate)); };
+    } catch (err) { alert("Microphone/Camera access denied: " + err.message); setInCall(false); }
   };
 
   const endCall = () => {
-    const duration = callStartTime ? Math.floor((Date.now() - callStartTime) / 1000) : 0;
     if (localStreamRef.current) localStreamRef.current.getTracks().forEach(t => t.stop());
     if (pcRef.current) pcRef.current.close();
     set(ref(db, `calls/${activeChat?.chatId}`), null);
-    if (activeChat) {
-      saveCallToHistory(user.uid, {
-        name: activeChat.name, contactEmail: activeChat.email,
-        type: callType, direction: "outgoing", status: "completed", duration,
-      });
-    }
-    setInCall(false); setCallType(null); setCallStartTime(null);
+    setInCall(false); setCallType(null);
   };
 
   useEffect(() => {
@@ -241,7 +212,7 @@ export default function App() {
       const data = snap.val();
       if (data && data.caller !== user.uid && data.offer && !inCall) {
         if (window.confirm(`Incoming ${data.type === "video" ? "Video" : "Audio"} call from ${data.callerName}! Answer?`)) {
-          setCallType(data.type); setInCall(true); setCallStartTime(Date.now());
+          setCallType(data.type); setInCall(true);
           try {
             const stream = await navigator.mediaDevices.getUserMedia({ video: data.type === "video", audio: true });
             localStreamRef.current = stream;
@@ -255,23 +226,7 @@ export default function App() {
             await pc.setLocalDescription(answer);
             await set(ref(db, `calls/${activeChat.chatId}/answer`), JSON.stringify(answer));
             pc.onicecandidate = (e) => { if (e.candidate) push(ref(db, `calls/${activeChat.chatId}/calleeCandidates`), JSON.stringify(e.candidate)); };
-            saveCallToHistory(user.uid, {
-              name: data.callerName, contactEmail: "",
-              type: data.type, direction: "incoming", status: "completed", duration: 0,
-            });
-          } catch (err) {
-            alert("Could not receive call: " + err.message);
-            setInCall(false);
-            saveCallToHistory(user.uid, {
-              name: data.callerName, contactEmail: "",
-              type: data.type, direction: "incoming", status: "missed", duration: 0,
-            });
-          }
-        } else {
-          saveCallToHistory(user.uid, {
-            name: data.callerName, contactEmail: "",
-            type: data.type, direction: "incoming", status: "missed", duration: 0,
-          });
+          } catch (err) { alert("Could not receive call: " + err.message); setInCall(false); }
         }
       }
     });
@@ -319,17 +274,13 @@ export default function App() {
     </div>
   );
 
-  if (showStatus) return <Status user={user} onClose={() => setShowStatus(false)} />;
-  if (showCallHistory) return <CallHistory user={user} onClose={() => setShowCallHistory(false)} onCall={(email, type) => { setShowCallHistory(false); const contact = Object.values(contacts).find(c => c.email === email); if (contact) { setActiveChat(contact); startCall(type, contact); }}} />;
-
   return (
     <div style={{ display:"flex", height:"100vh", fontFamily:"'Segoe UI',sans-serif", background:"#111b21", color:"#e9edef", overflow:"hidden", position:"relative" }}>
 
-      {/* Notifications */}
       <div style={{ position:"fixed", top:16, right:16, zIndex:9999, display:"flex", flexDirection:"column", gap:10 }}>
         {notifications.map(n => (
           <div key={n.id} onClick={() => { openChat(n.contact); setNotifications(p => p.filter(x => x.id !== n.id)); }}
-            style={{ background:"#202c33", borderRadius:14, padding:"10px 16px", display:"flex", alignItems:"center", gap:12, boxShadow:"0 6px 24px rgba(0,0,0,0.5)", animation:"slideIn 0.3s ease", minWidth:260, borderLeft:`4px solid ${colorFromName(n.name)}`, cursor:"pointer" }}>
+            style={{ background:"#202c33", borderRadius:14, padding:"10px 16px", display:"flex", alignItems:"center", gap:12, boxShadow:"0 6px 24px rgba(0,0,0,0.5)", minWidth:260, borderLeft:`4px solid ${colorFromName(n.name)}`, cursor:"pointer" }}>
             <div style={{ width:36, height:36, borderRadius:"50%", background:colorFromName(n.name), display:"flex", alignItems:"center", justifyContent:"center", fontWeight:800, fontSize:13, color:"#fff" }}>{getInitials(n.name)}</div>
             <div style={{ flex:1, overflow:"hidden" }}>
               <div style={{ fontWeight:700, fontSize:12, color:"#25D366" }}>{n.name}</div>
@@ -339,7 +290,6 @@ export default function App() {
         ))}
       </div>
 
-      {/* Image Preview */}
       {previewImg && (
         <div onClick={() => setPreviewImg(null)} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.9)", zIndex:9998, display:"flex", alignItems:"center", justifyContent:"center" }}>
           <img src={previewImg} alt="p" style={{ maxWidth:"90vw", maxHeight:"90vh", borderRadius:12 }} />
@@ -347,7 +297,6 @@ export default function App() {
         </div>
       )}
 
-      {/* Call Screen */}
       {inCall && (
         <div style={{ position:"fixed", inset:0, background:"#0b141a", zIndex:9997, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:20 }}>
           <div style={{ fontSize:20, color:"#e9edef", fontWeight:700 }}>{callType === "video" ? "📹 Video Call" : "📞 Audio Call"} — {activeChat?.name}</div>
@@ -359,13 +308,10 @@ export default function App() {
           )}
           {callType === "audio" && <div style={{ fontSize:80 }}>📞</div>}
           <div style={{ color:"#8696a0", fontSize:14 }}>Call in progress...</div>
-          <div onClick={endCall} style={{ padding:"14px 32px", background:"#ef4444", borderRadius:50, color:"#fff", fontWeight:700, fontSize:16, cursor:"pointer" }}>
-            📵 End Call
-          </div>
+          <div onClick={endCall} style={{ padding:"14px 32px", background:"#ef4444", borderRadius:50, color:"#fff", fontWeight:700, fontSize:16, cursor:"pointer" }}>📵 End Call</div>
         </div>
       )}
 
-      {/* Invite Modal */}
       {showInvite && (
         <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.7)", zIndex:9996, display:"flex", alignItems:"center", justifyContent:"center" }}>
           <div style={{ background:"#202c33", borderRadius:20, padding:28, maxWidth:340, width:"90%", textAlign:"center" }}>
@@ -381,7 +327,6 @@ export default function App() {
         </div>
       )}
 
-      {/* SIDEBAR */}
       <div style={{ width:340, minWidth:340, display:"flex", flexDirection:"column", borderRight:"1px solid #1f2c33" }}>
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 16px", background:"#202c33", height:60 }}>
           <div style={{ display:"flex", alignItems:"center", gap:10 }}>
@@ -394,11 +339,9 @@ export default function App() {
             </div>
           </div>
           <div style={{ display:"flex", gap:14 }}>
-            <span onClick={() => setShowStatus(true)} style={{ cursor:"pointer", fontSize:20 }} title="Status">🔵</span>
-            <span onClick={() => setShowCallHistory(true)} style={{ cursor:"pointer", fontSize:20 }} title="Call History">📋</span>
-            <span onClick={generateInvite} style={{ cursor:"pointer", fontSize:20 }} title="Invite">🔗</span>
-            <span onClick={() => setShowNewChat(!showNewChat)} style={{ cursor:"pointer", fontSize:20 }} title="New Chat">✏️</span>
-            <span onClick={logout} style={{ cursor:"pointer", fontSize:20 }} title="Logout">🚪</span>
+            <span onClick={generateInvite} style={{ cursor:"pointer", fontSize:20 }}>🔗</span>
+            <span onClick={() => setShowNewChat(!showNewChat)} style={{ cursor:"pointer", fontSize:20 }}>✏️</span>
+            <span onClick={logout} style={{ cursor:"pointer", fontSize:20 }}>🚪</span>
           </div>
         </div>
 
@@ -443,7 +386,6 @@ export default function App() {
         </div>
       </div>
 
-      {/* CHAT PANEL */}
       {activeChat ? (
         <div style={{ flex:1, display:"flex", flexDirection:"column", background:"#0b141a" }}>
           <div style={{ display:"flex", alignItems:"center", padding:"10px 18px", background:"#202c33", gap:13, height:60 }}>
@@ -455,8 +397,8 @@ export default function App() {
               <div style={{ fontSize:12, color:"#25D366" }}>{activeChat.email}</div>
             </div>
             <div style={{ display:"flex", gap:16, fontSize:22 }}>
-              <span onClick={() => startCall("audio")} style={{ cursor:"pointer" }} title="Audio Call">📞</span>
-              <span onClick={() => startCall("video")} style={{ cursor:"pointer" }} title="Video Call">📹</span>
+              <span onClick={() => startCall("audio")} style={{ cursor:"pointer" }}>📞</span>
+              <span onClick={() => startCall("video")} style={{ cursor:"pointer" }}>📹</span>
             </div>
           </div>
 
@@ -505,10 +447,8 @@ export default function App() {
           <p style={{ color:"#8696a0", fontSize:14, textAlign:"center", maxWidth:320, lineHeight:1.7, margin:0 }}>
             Chat, audio and video call with your friends in real time!
           </p>
-          <div style={{ display:"flex", gap:12, flexWrap:"wrap", justifyContent:"center" }}>
-            <div onClick={() => setShowStatus(true)} style={{ padding:"12px 20px", background:"#128C7E", borderRadius:20, color:"#fff", fontWeight:700, cursor:"pointer" }}>🔵 Status</div>
-            <div onClick={() => setShowCallHistory(true)} style={{ padding:"12px 20px", background:"#075E54", borderRadius:20, color:"#fff", fontWeight:700, cursor:"pointer" }}>📋 Call History</div>
-            <div onClick={generateInvite} style={{ padding:"12px 20px", background:"#25D366", borderRadius:20, color:"#fff", fontWeight:700, cursor:"pointer" }}>🔗 Invite Friend</div>
+          <div onClick={generateInvite} style={{ padding:"12px 24px", background:"#25D366", borderRadius:20, color:"#fff", fontWeight:700, cursor:"pointer" }}>
+            🔗 Invite a Friend
           </div>
         </div>
       )}
