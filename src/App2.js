@@ -34,6 +34,28 @@ function colorFromName(name) {
 }
 function getChatId(uid1, uid2) { return [uid1, uid2].sort().join("_"); }
 
+function timeAgo(ts) {
+  const diff = Date.now() - ts;
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "Just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return "Expired";
+}
+
+function formatDuration(seconds) {
+  if (!seconds) return "0:00";
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
+function formatCallTime(ts) {
+  if (!ts) return "";
+  return new Date(ts).toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+
 export default function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -57,8 +79,17 @@ export default function App() {
   const [copied, setCopied] = useState(false);
   const [inCall, setInCall] = useState(false);
   const [callType, setCallType] = useState(null);
+  const [currentView, setCurrentView] = useState("chats");
+  const [statuses, setStatuses] = useState([]);
+  const [statusText, setStatusText] = useState("");
+  const [showAddStatus, setShowAddStatus] = useState(false);
+  const [viewingStatus, setViewingStatus] = useState(null);
+  const [callHistory, setCallHistory] = useState([]);
+  const [callFilter, setCallFilter] = useState("all");
+  const [callStartTime, setCallStartTime] = useState(null);
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
+  const statusFileRef = useRef(null);
   const notifRef = useRef(0);
   const activeChatRef = useRef(null);
   const localVideoRef = useRef(null);
@@ -75,6 +106,8 @@ export default function App() {
         setUser(u); setScreen("chat");
         await set(ref(db, `users/${u.uid}`), { uid: u.uid, name: u.displayName || u.email.split("@")[0], email: u.email, online: true, lastSeen: serverTimestamp() });
         loadContacts(u);
+        loadStatuses();
+        loadCallHistory(u);
       } else { setUser(null); setScreen("login"); }
       setLoading(false);
     });
@@ -92,6 +125,26 @@ export default function App() {
       }
       setContacts(map);
     });
+  };
+
+  const loadStatuses = () => {
+    onValue(ref(db, "statuses"), (snap) => {
+      const data = snap.val() || {};
+      const arr = Object.values(data).filter(s => Date.now() - s.timestamp < 86400000).sort((a, b) => b.timestamp - a.timestamp);
+      setStatuses(arr);
+    });
+  };
+
+  const loadCallHistory = (u) => {
+    onValue(ref(db, `callHistory/${u.uid}`), (snap) => {
+      const data = snap.val() || {};
+      const arr = Object.values(data).sort((a, b) => b.timestamp - a.timestamp);
+      setCallHistory(arr);
+    });
+  };
+
+  const saveCall = (u, callData) => {
+    push(ref(db, `callHistory/${u.uid}`), { ...callData, timestamp: Date.now() });
   };
 
   const register = async () => {
@@ -129,7 +182,7 @@ export default function App() {
     const chatId = getChatId(user.uid, found.uid);
     await set(ref(db, `userChats/${user.uid}/${chatId}`), { with: found.uid, lastMsg: "", lastTime: serverTimestamp() });
     await set(ref(db, `userChats/${found.uid}/${chatId}`), { with: user.uid, lastMsg: "", lastTime: serverTimestamp() });
-    setNewChatEmail(""); setShowNewChat(false);
+    setNewChatEmail(""); setShowNewChat(false); setCurrentView("chats");
     openChat({ ...found, chatId });
   };
 
@@ -170,6 +223,25 @@ export default function App() {
     e.target.value = "";
   };
 
+  const postStatus = async (imageData = null) => {
+    if (!statusText.trim() && !imageData) return;
+    await push(ref(db, "statuses"), {
+      uid: user.uid, name: user.displayName || user.email,
+      text: statusText.trim(), image: imageData || null, timestamp: Date.now(),
+    });
+    setStatusText(""); setShowAddStatus(false);
+  };
+
+  const handleStatusImage = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (file.size > 500000) { alert("Image must be under 500KB"); return; }
+    const reader = new FileReader();
+    reader.onload = ev => postStatus(ev.target.result);
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  };
+
   const generateInvite = () => {
     const link = `${window.location.origin}?invite=${btoa(user.email)}`;
     setInviteLink(link); setShowInvite(true);
@@ -180,7 +252,8 @@ export default function App() {
   };
 
   const startCall = async (type) => {
-    setCallType(type); setInCall(true);
+    if (!activeChat) return;
+    setCallType(type); setInCall(true); setCallStartTime(Date.now());
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: type === "video", audio: true });
       localStreamRef.current = stream;
@@ -196,14 +269,20 @@ export default function App() {
         if (snap.val() && pc.signalingState !== "stable") await pc.setRemoteDescription(JSON.parse(snap.val()));
       });
       pc.onicecandidate = (e) => { if (e.candidate) push(ref(db, `calls/${activeChat.chatId}/callerCandidates`), JSON.stringify(e.candidate)); };
-    } catch (err) { alert("Microphone/Camera access denied: " + err.message); setInCall(false); }
+      saveCall(user, { name: activeChat.name, type, direction: "outgoing", status: "completed", duration: 0 });
+    } catch (err) {
+      alert("Microphone/Camera access denied: " + err.message);
+      setInCall(false);
+      saveCall(user, { name: activeChat.name, type, direction: "outgoing", status: "missed", duration: 0 });
+    }
   };
 
   const endCall = () => {
+    const duration = callStartTime ? Math.floor((Date.now() - callStartTime) / 1000) : 0;
     if (localStreamRef.current) localStreamRef.current.getTracks().forEach(t => t.stop());
     if (pcRef.current) pcRef.current.close();
     set(ref(db, `calls/${activeChat?.chatId}`), null);
-    setInCall(false); setCallType(null);
+    setInCall(false); setCallType(null); setCallStartTime(null);
   };
 
   useEffect(() => {
@@ -212,7 +291,7 @@ export default function App() {
       const data = snap.val();
       if (data && data.caller !== user.uid && data.offer && !inCall) {
         if (window.confirm(`Incoming ${data.type === "video" ? "Video" : "Audio"} call from ${data.callerName}! Answer?`)) {
-          setCallType(data.type); setInCall(true);
+          setCallType(data.type); setInCall(true); setCallStartTime(Date.now());
           try {
             const stream = await navigator.mediaDevices.getUserMedia({ video: data.type === "video", audio: true });
             localStreamRef.current = stream;
@@ -226,7 +305,14 @@ export default function App() {
             await pc.setLocalDescription(answer);
             await set(ref(db, `calls/${activeChat.chatId}/answer`), JSON.stringify(answer));
             pc.onicecandidate = (e) => { if (e.candidate) push(ref(db, `calls/${activeChat.chatId}/calleeCandidates`), JSON.stringify(e.candidate)); };
-          } catch (err) { alert("Could not receive call: " + err.message); setInCall(false); }
+            saveCall(user, { name: data.callerName, type: data.type, direction: "incoming", status: "completed", duration: 0 });
+          } catch (err) {
+            alert("Could not receive call: " + err.message);
+            setInCall(false);
+            saveCall(user, { name: data.callerName, type: data.type, direction: "incoming", status: "missed", duration: 0 });
+          }
+        } else {
+          saveCall(user, { name: data.callerName, type: data.type, direction: "incoming", status: "missed", duration: 0 });
         }
       }
     });
@@ -274,9 +360,20 @@ export default function App() {
     </div>
   );
 
+  const filteredCalls = callHistory.filter(c => {
+    if (callFilter === "missed") return c.status === "missed";
+    if (callFilter === "incoming") return c.direction === "incoming";
+    if (callFilter === "outgoing") return c.direction === "outgoing";
+    return true;
+  });
+
+  const myStatuses = statuses.filter(s => s.uid === user.uid);
+  const othersStatuses = statuses.filter(s => s.uid !== user.uid);
+
   return (
     <div style={{ display:"flex", height:"100vh", fontFamily:"'Segoe UI',sans-serif", background:"#111b21", color:"#e9edef", overflow:"hidden", position:"relative" }}>
 
+      {/* Notifications */}
       <div style={{ position:"fixed", top:16, right:16, zIndex:9999, display:"flex", flexDirection:"column", gap:10 }}>
         {notifications.map(n => (
           <div key={n.id} onClick={() => { openChat(n.contact); setNotifications(p => p.filter(x => x.id !== n.id)); }}
@@ -290,6 +387,7 @@ export default function App() {
         ))}
       </div>
 
+      {/* Image Preview */}
       {previewImg && (
         <div onClick={() => setPreviewImg(null)} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.9)", zIndex:9998, display:"flex", alignItems:"center", justifyContent:"center" }}>
           <img src={previewImg} alt="p" style={{ maxWidth:"90vw", maxHeight:"90vh", borderRadius:12 }} />
@@ -297,6 +395,27 @@ export default function App() {
         </div>
       )}
 
+      {/* Status Viewer */}
+      {viewingStatus && (
+        <div onClick={() => setViewingStatus(null)} style={{ position:"fixed", inset:0, background:"#000", zIndex:10000, display:"flex", flexDirection:"column" }}>
+          <div style={{ padding:"16px 20px", display:"flex", alignItems:"center", gap:12 }}>
+            <div style={{ width:40, height:40, borderRadius:"50%", background:colorFromName(viewingStatus.name), display:"flex", alignItems:"center", justifyContent:"center", fontWeight:800, color:"#fff" }}>
+              {getInitials(viewingStatus.name)}
+            </div>
+            <div>
+              <div style={{ fontWeight:700, color:"#fff" }}>{viewingStatus.name}</div>
+              <div style={{ fontSize:12, color:"#aaa" }}>{timeAgo(viewingStatus.timestamp)}</div>
+            </div>
+            <span style={{ marginLeft:"auto", fontSize:24, color:"#fff" }}>✕</span>
+          </div>
+          <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
+            {viewingStatus.image && <img src={viewingStatus.image} alt="status" style={{ maxWidth:"100%", maxHeight:"70vh", borderRadius:12 }} />}
+            {viewingStatus.text && <p style={{ color:"#fff", fontSize:20, textAlign:"center", lineHeight:1.5 }}>{viewingStatus.text}</p>}
+          </div>
+        </div>
+      )}
+
+      {/* Call Screen */}
       {inCall && (
         <div style={{ position:"fixed", inset:0, background:"#0b141a", zIndex:9997, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:20 }}>
           <div style={{ fontSize:20, color:"#e9edef", fontWeight:700 }}>{callType === "video" ? "📹 Video Call" : "📞 Audio Call"} — {activeChat?.name}</div>
@@ -312,6 +431,7 @@ export default function App() {
         </div>
       )}
 
+      {/* Invite Modal */}
       {showInvite && (
         <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.7)", zIndex:9996, display:"flex", alignItems:"center", justifyContent:"center" }}>
           <div style={{ background:"#202c33", borderRadius:20, padding:28, maxWidth:340, width:"90%", textAlign:"center" }}>
@@ -327,7 +447,9 @@ export default function App() {
         </div>
       )}
 
+      {/* SIDEBAR */}
       <div style={{ width:340, minWidth:340, display:"flex", flexDirection:"column", borderRight:"1px solid #1f2c33" }}>
+        {/* Header */}
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 16px", background:"#202c33", height:60 }}>
           <div style={{ display:"flex", alignItems:"center", gap:10 }}>
             <div style={{ width:42, height:42, borderRadius:"50%", background:colorFromName(user?.displayName), display:"flex", alignItems:"center", justifyContent:"center", fontWeight:800, fontSize:15, color:"#fff" }}>
@@ -338,16 +460,28 @@ export default function App() {
               <div style={{ fontSize:11, color:"#25D366" }}>Online ✨</div>
             </div>
           </div>
-          <div style={{ display:"flex", gap:14 }}>
+          <div style={{ display:"flex", gap:12 }}>
             <span onClick={generateInvite} style={{ cursor:"pointer", fontSize:20 }}>🔗</span>
             <span onClick={() => setShowNewChat(!showNewChat)} style={{ cursor:"pointer", fontSize:20 }}>✏️</span>
             <span onClick={logout} style={{ cursor:"pointer", fontSize:20 }}>🚪</span>
           </div>
         </div>
 
-        {showNewChat && (
+        {/* Tabs */}
+        <div style={{ display:"flex", background:"#202c33", borderBottom:"1px solid #1f2c33" }}>
+          {[["chats","💬","Chats"],["status","🔵","Status"],["calls","📋","Calls"]].map(([view, icon, label]) => (
+            <div key={view} onClick={() => setCurrentView(view)}
+              style={{ flex:1, textAlign:"center", padding:"10px 4px", cursor:"pointer", fontSize:12, fontWeight:600,
+                color: currentView===view ? "#25D366" : "#8696a0",
+                borderBottom: currentView===view ? "2px solid #25D366" : "2px solid transparent" }}>
+              {icon} {label}
+            </div>
+          ))}
+        </div>
+
+        {/* New Chat */}
+        {showNewChat && currentView === "chats" && (
           <div style={{ padding:"10px 12px", background:"#182229", borderBottom:"1px solid #1f2c33" }}>
-            <div style={{ fontSize:13, color:"#25D366", fontWeight:600, marginBottom:8 }}>New Chat</div>
             <input value={newChatEmail} onChange={e => setNewChatEmail(e.target.value)} placeholder="Enter friend's email..."
               style={{ width:"100%", padding:"10px 12px", background:"#2a3942", border:"none", borderRadius:10, color:"#e9edef", fontSize:14, outline:"none", boxSizing:"border-box", marginBottom:6 }} />
             {newChatError && <div style={{ color:"#ef4444", fontSize:12, marginBottom:6 }}>{newChatError}</div>}
@@ -359,33 +493,128 @@ export default function App() {
         )}
 
         <div style={{ flex:1, overflowY:"auto" }}>
-          {Object.keys(contacts).length === 0 ? (
-            <div style={{ padding:24, textAlign:"center", color:"#8696a0" }}>
-              <div style={{ fontSize:40, marginBottom:12 }}>👥</div>
-              <div style={{ fontSize:14 }}>No contacts yet</div>
-              <div style={{ fontSize:12, marginTop:6 }}>Use ✏️ or 🔗 to get started</div>
-            </div>
-          ) : Object.entries(contacts).map(([chatId, contact]) => (
-            <div key={chatId} onClick={() => openChat(contact)}
-              style={{ display:"flex", alignItems:"center", padding:"12px 16px", cursor:"pointer", gap:12, background:activeChat?.chatId===chatId?"#2a3942":"transparent", borderBottom:"1px solid #1a2530" }}
-              onMouseEnter={e => { if (activeChat?.chatId!==chatId) e.currentTarget.style.background="#182229"; }}
-              onMouseLeave={e => { if (activeChat?.chatId!==chatId) e.currentTarget.style.background="transparent"; }}
-            >
-              <div style={{ width:50, height:50, borderRadius:"50%", background:colorFromName(contact.name), display:"flex", alignItems:"center", justifyContent:"center", fontWeight:800, fontSize:16, color:"#fff", flexShrink:0 }}>
-                {getInitials(contact.name)}
+
+          {/* CHATS TAB */}
+          {currentView === "chats" && (
+            Object.keys(contacts).length === 0 ? (
+              <div style={{ padding:24, textAlign:"center", color:"#8696a0" }}>
+                <div style={{ fontSize:40, marginBottom:12 }}>👥</div>
+                <div style={{ fontSize:14 }}>No contacts yet</div>
+                <div style={{ fontSize:12, marginTop:6 }}>Use ✏️ or 🔗 to get started</div>
               </div>
-              <div style={{ flex:1, overflow:"hidden" }}>
-                <div style={{ display:"flex", justifyContent:"space-between", marginBottom:3 }}>
-                  <span style={{ fontWeight:700, fontSize:15 }}>{contact.name}</span>
-                  <span style={{ fontSize:11, color:"#8696a0" }}>{formatTime(contact.lastTime)}</span>
+            ) : Object.entries(contacts).map(([chatId, contact]) => (
+              <div key={chatId} onClick={() => openChat(contact)}
+                style={{ display:"flex", alignItems:"center", padding:"12px 16px", cursor:"pointer", gap:12, background:activeChat?.chatId===chatId?"#2a3942":"transparent", borderBottom:"1px solid #1a2530" }}
+                onMouseEnter={e => { if (activeChat?.chatId!==chatId) e.currentTarget.style.background="#182229"; }}
+                onMouseLeave={e => { if (activeChat?.chatId!==chatId) e.currentTarget.style.background="transparent"; }}
+              >
+                <div style={{ width:50, height:50, borderRadius:"50%", background:colorFromName(contact.name), display:"flex", alignItems:"center", justifyContent:"center", fontWeight:800, fontSize:16, color:"#fff", flexShrink:0 }}>
+                  {getInitials(contact.name)}
                 </div>
-                <div style={{ fontSize:13, color:"#8696a0", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{contact.lastMsg || contact.email}</div>
+                <div style={{ flex:1, overflow:"hidden" }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", marginBottom:3 }}>
+                    <span style={{ fontWeight:700, fontSize:15 }}>{contact.name}</span>
+                    <span style={{ fontSize:11, color:"#8696a0" }}>{formatTime(contact.lastTime)}</span>
+                  </div>
+                  <div style={{ fontSize:13, color:"#8696a0", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{contact.lastMsg || contact.email}</div>
+                </div>
               </div>
+            ))
+          )}
+
+          {/* STATUS TAB */}
+          {currentView === "status" && (
+            <div>
+              {/* Add Status */}
+              <div style={{ padding:"10px 12px", borderBottom:"1px solid #1f2c33" }}>
+                <div onClick={() => setShowAddStatus(!showAddStatus)}
+                  style={{ display:"flex", alignItems:"center", gap:12, padding:"8px 4px", cursor:"pointer" }}>
+                  <div style={{ width:50, height:50, borderRadius:"50%", background:colorFromName(user?.displayName), display:"flex", alignItems:"center", justifyContent:"center", fontWeight:800, fontSize:16, color:"#fff", border: myStatuses.length > 0 ? "3px solid #25D366" : "3px dashed #8696a0", flexShrink:0 }}>
+                    {getInitials(user?.displayName)}
+                  </div>
+                  <div>
+                    <div style={{ fontWeight:600, fontSize:15 }}>My Status</div>
+                    <div style={{ fontSize:13, color:"#8696a0" }}>{myStatuses.length > 0 ? timeAgo(myStatuses[0].timestamp) : "Tap to add status update"}</div>
+                  </div>
+                </div>
+                {showAddStatus && (
+                  <div style={{ marginTop:8 }}>
+                    <input value={statusText} onChange={e => setStatusText(e.target.value)} placeholder="Type a status..."
+                      style={{ width:"100%", padding:"10px 12px", background:"#2a3942", border:"none", borderRadius:10, color:"#e9edef", fontSize:14, outline:"none", boxSizing:"border-box", marginBottom:8 }} />
+                    <div style={{ display:"flex", gap:8 }}>
+                      <div onClick={() => postStatus()} style={{ flex:1, padding:"9px", background:"#25D366", borderRadius:10, textAlign:"center", color:"#fff", fontWeight:700, fontSize:13, cursor:"pointer" }}>📝 Post</div>
+                      <div onClick={() => statusFileRef.current?.click()} style={{ padding:"9px 14px", background:"#2a3942", borderRadius:10, color:"#e9edef", cursor:"pointer" }}>📷</div>
+                      <div onClick={() => setShowAddStatus(false)} style={{ padding:"9px 14px", background:"#2a3942", borderRadius:10, color:"#8696a0", cursor:"pointer" }}>✕</div>
+                    </div>
+                    <input type="file" accept="image/*" ref={statusFileRef} onChange={handleStatusImage} style={{ display:"none" }} />
+                  </div>
+                )}
+              </div>
+
+              {othersStatuses.length > 0 && (
+                <div style={{ padding:"6px 16px 4px", fontSize:11, color:"#8696a0", fontWeight:600, textTransform:"uppercase" }}>Recent Updates</div>
+              )}
+              {othersStatuses.map((s, i) => (
+                <div key={i} onClick={() => setViewingStatus(s)}
+                  style={{ display:"flex", alignItems:"center", padding:"12px 16px", gap:12, cursor:"pointer", borderBottom:"1px solid #1a2530" }}>
+                  <div style={{ width:50, height:50, borderRadius:"50%", background:colorFromName(s.name), display:"flex", alignItems:"center", justifyContent:"center", fontWeight:800, fontSize:16, color:"#fff", border:"3px solid #25D366", flexShrink:0 }}>
+                    {getInitials(s.name)}
+                  </div>
+                  <div>
+                    <div style={{ fontWeight:600, fontSize:15 }}>{s.name}</div>
+                    <div style={{ fontSize:13, color:"#8696a0" }}>{timeAgo(s.timestamp)}</div>
+                  </div>
+                </div>
+              ))}
+              {statuses.length === 0 && (
+                <div style={{ textAlign:"center", marginTop:60, color:"#8696a0" }}>
+                  <div style={{ fontSize:48, marginBottom:12 }}>📸</div>
+                  <div>No status updates yet</div>
+                </div>
+              )}
             </div>
-          ))}
+          )}
+
+          {/* CALLS TAB */}
+          {currentView === "calls" && (
+            <div>
+              <div style={{ display:"flex", padding:"0 12px", gap:4, background:"#202c33", borderBottom:"1px solid #1f2c33" }}>
+                {["all","missed","incoming","outgoing"].map(f => (
+                  <div key={f} onClick={() => setCallFilter(f)}
+                    style={{ padding:"8px 10px", cursor:"pointer", fontSize:12, fontWeight:600,
+                      color: callFilter===f ? "#25D366" : "#8696a0",
+                      borderBottom: callFilter===f ? "2px solid #25D366" : "2px solid transparent",
+                      textTransform:"capitalize" }}>
+                    {f === "missed" ? "📵" : f === "incoming" ? "📞" : f === "outgoing" ? "📲" : "All"}
+                  </div>
+                ))}
+              </div>
+              {filteredCalls.length === 0 ? (
+                <div style={{ textAlign:"center", marginTop:60, color:"#8696a0" }}>
+                  <div style={{ fontSize:48, marginBottom:12 }}>📋</div>
+                  <div>No calls yet</div>
+                </div>
+              ) : filteredCalls.map((call, i) => (
+                <div key={i} style={{ display:"flex", alignItems:"center", padding:"12px 16px", gap:12, borderBottom:"1px solid #1a2530" }}>
+                  <div style={{ width:48, height:48, borderRadius:"50%", background:colorFromName(call.name), display:"flex", alignItems:"center", justifyContent:"center", fontWeight:800, fontSize:15, color:"#fff", flexShrink:0 }}>
+                    {getInitials(call.name)}
+                  </div>
+                  <div style={{ flex:1 }}>
+                    <div style={{ fontWeight:700, fontSize:15 }}>{call.name}</div>
+                    <div style={{ fontSize:12, color: call.status==="missed"?"#ef4444":call.direction==="incoming"?"#25D366":"#34B7F1" }}>
+                      {call.status==="missed"?"📵 Missed":call.direction==="incoming"?`📞 Incoming ${call.type}`:`📲 Outgoing ${call.type}`}
+                    </div>
+                    <div style={{ fontSize:11, color:"#8696a0" }}>{formatCallTime(call.timestamp)}</div>
+                  </div>
+                  {call.duration > 0 && <div style={{ fontSize:11, color:"#8696a0" }}>⏱️ {formatDuration(call.duration)}</div>}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
+      {/* CHAT PANEL */}
       {activeChat ? (
         <div style={{ flex:1, display:"flex", flexDirection:"column", background:"#0b141a" }}>
           <div style={{ display:"flex", alignItems:"center", padding:"10px 18px", background:"#202c33", gap:13, height:60 }}>
@@ -445,7 +674,7 @@ export default function App() {
           <div style={{ fontSize:80 }}>💬</div>
           <h2 style={{ color:"#e9edef", fontWeight:800, fontSize:28, margin:0 }}>Khan Chats</h2>
           <p style={{ color:"#8696a0", fontSize:14, textAlign:"center", maxWidth:320, lineHeight:1.7, margin:0 }}>
-            Chat, audio and video call with your friends in real time!
+            Chat, audio and video call with your friends!
           </p>
           <div onClick={generateInvite} style={{ padding:"12px 24px", background:"#25D366", borderRadius:20, color:"#fff", fontWeight:700, cursor:"pointer" }}>
             🔗 Invite a Friend
