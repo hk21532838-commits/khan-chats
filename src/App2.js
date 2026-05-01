@@ -17,6 +17,8 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getDatabase(app);
 
+const LANGUAGES = ["English","Urdu","Arabic","Hindi","Spanish","French","German","Chinese","Japanese","Korean","Portuguese","Russian","Turkish","Italian","Dutch","Polish","Swedish","Norwegian","Danish","Finnish","Greek","Hebrew","Persian","Bengali","Punjabi","Sindhi","Pashto","Swahili","Malay","Indonesian","Thai","Vietnamese","Romanian","Hungarian","Czech","Slovak","Bulgarian","Croatian","Serbian","Ukrainian","Catalan","Slovenian","Lithuanian","Latvian","Estonian","Albanian","Macedonian","Bosnian","Azerbaijani","Georgian","Armenian","Kazakh","Uzbek","Turkmen","Kyrgyz","Tajik","Mongolian","Tibetan","Nepali","Sinhala","Burmese","Khmer","Lao","Amharic","Somali","Yoruba","Igbo","Hausa","Zulu","Xhosa","Afrikaans","Malagasy","Sesotho","Shona","Maltese","Icelandic","Welsh","Irish","Scottish Gaelic","Basque","Galician","Belarusian","Moldovan","Luxembourgish","Faroese","Breton","Occitan","Corsican","Sardinian","Sicilian","Neapolitan","Venetian","Lombard","Piedmontese","Ligurian","Friulian","Romansh","Aragonese","Asturian","Mirandese","Extremaduran","Fula","Wolof","Bambara","Moore","Lingala","Kinyarwanda","Kirundi","Luganda","Chichewa","Tswana","Sotho","Tsonga"];
+
 function formatTime(ts) {
   if (!ts) return "";
   return new Date(ts).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
@@ -33,7 +35,6 @@ function colorFromName(name) {
   return COLORS[sum % COLORS.length];
 }
 function getChatId(uid1, uid2) { return [uid1, uid2].sort().join("_"); }
-
 function timeAgo(ts) {
   const diff = Date.now() - ts;
   const mins = Math.floor(diff / 60000);
@@ -43,14 +44,12 @@ function timeAgo(ts) {
   if (hrs < 24) return `${hrs}h ago`;
   return "Expired";
 }
-
 function formatDuration(seconds) {
   if (!seconds) return "0:00";
   const m = Math.floor(seconds / 60);
   const s = seconds % 60;
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
-
 function formatCallTime(ts) {
   if (!ts) return "";
   return new Date(ts).toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
@@ -66,6 +65,7 @@ export default function App() {
   const [authError, setAuthError] = useState("");
   const [authLoading, setAuthLoading] = useState(false);
   const [contacts, setContacts] = useState({});
+  const [pinnedChats, setPinnedChats] = useState([]);
   const [activeChat, setActiveChat] = useState(null);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
@@ -87,9 +87,19 @@ export default function App() {
   const [callHistory, setCallHistory] = useState([]);
   const [callFilter, setCallFilter] = useState("all");
   const [callStartTime, setCallStartTime] = useState(null);
+  const [showSettings, setShowSettings] = useState(false);
+  const [settingsTab, setSettingsTab] = useState("profile");
+  const [profilePic, setProfilePic] = useState(null);
+  const [newName, setNewName] = useState("");
+  const [selectedLanguage, setSelectedLanguage] = useState("English");
+  const [langSearch, setLangSearch] = useState("");
+  const [aiInput, setAiInput] = useState("");
+  const [aiMessages, setAiMessages] = useState([]);
+  const [aiLoading, setAiLoading] = useState(false);
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
   const statusFileRef = useRef(null);
+  const profilePicRef = useRef(null);
   const notifRef = useRef(0);
   const activeChatRef = useRef(null);
   const localVideoRef = useRef(null);
@@ -103,11 +113,9 @@ export default function App() {
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
       if (u) {
-        setUser(u); setScreen("chat");
+        setUser(u); setScreen("chat"); setNewName(u.displayName || "");
         await set(ref(db, `users/${u.uid}`), { uid: u.uid, name: u.displayName || u.email.split("@")[0], email: u.email, online: true, lastSeen: serverTimestamp() });
-        loadContacts(u);
-        loadStatuses();
-        loadCallHistory(u);
+        loadContacts(u); loadStatuses(); loadCallHistory(u); loadPins(u); loadProfilePic(u);
       } else { setUser(null); setScreen("login"); }
       setLoading(false);
     });
@@ -138,13 +146,76 @@ export default function App() {
   const loadCallHistory = (u) => {
     onValue(ref(db, `callHistory/${u.uid}`), (snap) => {
       const data = snap.val() || {};
-      const arr = Object.values(data).sort((a, b) => b.timestamp - a.timestamp);
-      setCallHistory(arr);
+      setCallHistory(Object.values(data).sort((a, b) => b.timestamp - a.timestamp));
+    });
+  };
+
+  const loadPins = (u) => {
+    onValue(ref(db, `pins/${u.uid}`), (snap) => {
+      setPinnedChats(snap.val() || []);
+    });
+  };
+
+  const loadProfilePic = (u) => {
+    onValue(ref(db, `profilePics/${u.uid}`), (snap) => {
+      if (snap.val()) setProfilePic(snap.val());
     });
   };
 
   const saveCall = (u, callData) => {
     push(ref(db, `callHistory/${u.uid}`), { ...callData, timestamp: Date.now() });
+  };
+
+  const togglePin = async (chatId) => {
+    const newPins = pinnedChats.includes(chatId) ? pinnedChats.filter(p => p !== chatId) : [...pinnedChats, chatId];
+    await set(ref(db, `pins/${user.uid}`), newPins);
+  };
+
+  const saveProfilePic = async (imgData) => {
+    await set(ref(db, `profilePics/${user.uid}`), imgData);
+    setProfilePic(imgData);
+  };
+
+  const saveName = async () => {
+    if (!newName.trim()) return;
+    await updateProfile(auth.currentUser, { displayName: newName.trim() });
+    await set(ref(db, `users/${user.uid}/name`), newName.trim());
+    setUser({ ...user, displayName: newName.trim() });
+    alert("Name updated!");
+  };
+
+  const handleProfilePic = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (file.size > 500000) { alert("Image must be under 500KB"); return; }
+    const reader = new FileReader();
+    reader.onload = ev => saveProfilePic(ev.target.result);
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  };
+
+  const askKhanAI = async () => {
+    if (!aiInput.trim()) return;
+    const userMsg = { role: "user", text: aiInput.trim() };
+    setAiMessages(p => [...p, userMsg]);
+    setAiInput(""); setAiLoading(true);
+    try {
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 1000,
+          system: "You are Khan AI, a friendly assistant for Khan Chats app made by Hamza Khan. Be helpful, friendly and concise.",
+          messages: [...aiMessages.map(m => ({ role: m.role, content: m.text })), { role: "user", content: aiInput.trim() }],
+        }),
+      });
+      const data = await res.json();
+      setAiMessages(p => [...p, { role: "assistant", text: data.content?.[0]?.text || "Sorry, I couldn't respond." }]);
+    } catch {
+      setAiMessages(p => [...p, { role: "assistant", text: "Connection error. Please try again." }]);
+    }
+    setAiLoading(false);
   };
 
   const register = async () => {
@@ -195,12 +266,6 @@ export default function App() {
     });
   };
 
-  const pushNotif = (name, text, contact) => {
-    const id = ++notifRef.current;
-    setNotifications(p => [...p, { id, name, text, contact }]);
-    setTimeout(() => setNotifications(p => p.filter(n => n.id !== id)), 4000);
-  };
-
   const sendMessage = async (imageData = null) => {
     if (!activeChat || (!input.trim() && !imageData)) return;
     const msg = { text: imageData ? "" : input.trim(), image: imageData || null, senderUid: user.uid, senderName: user.displayName || user.email, timestamp: Date.now() };
@@ -225,10 +290,7 @@ export default function App() {
 
   const postStatus = async (imageData = null) => {
     if (!statusText.trim() && !imageData) return;
-    await push(ref(db, "statuses"), {
-      uid: user.uid, name: user.displayName || user.email,
-      text: statusText.trim(), image: imageData || null, timestamp: Date.now(),
-    });
+    await push(ref(db, "statuses"), { uid: user.uid, name: user.displayName || user.email, text: statusText.trim(), image: imageData || null, timestamp: Date.now() });
     setStatusText(""); setShowAddStatus(false);
   };
 
@@ -309,7 +371,6 @@ export default function App() {
           } catch (err) {
             alert("Could not receive call: " + err.message);
             setInCall(false);
-            saveCall(user, { name: data.callerName, type: data.type, direction: "incoming", status: "missed", duration: 0 });
           }
         } else {
           saveCall(user, { name: data.callerName, type: data.type, direction: "incoming", status: "missed", duration: 0 });
@@ -360,6 +421,155 @@ export default function App() {
     </div>
   );
 
+  // SETTINGS SCREEN
+  if (showSettings) return (
+    <div style={{ position:"fixed", inset:0, background:"#111b21", zIndex:9999, display:"flex", flexDirection:"column", fontFamily:"'Segoe UI',sans-serif", color:"#e9edef" }}>
+      <div style={{ display:"flex", alignItems:"center", padding:"12px 16px", background:"#202c33", gap:12 }}>
+        <span onClick={() => setShowSettings(false)} style={{ fontSize:22, cursor:"pointer", color:"#8696a0" }}>←</span>
+        <div style={{ fontWeight:700, fontSize:18, flex:1 }}>⚙️ Settings</div>
+      </div>
+
+      {/* Settings Tabs */}
+      <div style={{ display:"flex", background:"#202c33", borderBottom:"1px solid #1f2c33", overflowX:"auto" }}>
+        {[["profile","👤","Profile"],["language","🌐","Language"],["pins","📌","Pins"],["ai","🤖","Khan AI"]].map(([tab, icon, label]) => (
+          <div key={tab} onClick={() => setSettingsTab(tab)}
+            style={{ padding:"10px 16px", cursor:"pointer", fontSize:12, fontWeight:600, whiteSpace:"nowrap",
+              color: settingsTab===tab ? "#25D366" : "#8696a0",
+              borderBottom: settingsTab===tab ? "2px solid #25D366" : "2px solid transparent" }}>
+            {icon} {label}
+          </div>
+        ))}
+      </div>
+
+      <div style={{ flex:1, overflowY:"auto", padding:16 }}>
+
+        {/* PROFILE TAB */}
+        {settingsTab === "profile" && (
+          <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+            {/* Profile Picture */}
+            <div style={{ textAlign:"center" }}>
+              <div style={{ position:"relative", display:"inline-block" }}>
+                {profilePic ? (
+                  <img src={profilePic} alt="profile" style={{ width:100, height:100, borderRadius:"50%", objectFit:"cover", border:"3px solid #25D366" }} />
+                ) : (
+                  <div style={{ width:100, height:100, borderRadius:"50%", background:colorFromName(user?.displayName), display:"flex", alignItems:"center", justifyContent:"center", fontWeight:800, fontSize:32, color:"#fff", border:"3px solid #25D366", margin:"0 auto" }}>
+                    {getInitials(user?.displayName)}
+                  </div>
+                )}
+                <div onClick={() => profilePicRef.current?.click()} style={{ position:"absolute", bottom:4, right:4, background:"#25D366", borderRadius:"50%", width:28, height:28, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", fontSize:14 }}>📷</div>
+              </div>
+              <input type="file" accept="image/*" ref={profilePicRef} onChange={handleProfilePic} style={{ display:"none" }} />
+              <div style={{ marginTop:8, color:"#8696a0", fontSize:13 }}>Tap camera to change photo</div>
+            </div>
+
+            {/* Name */}
+            <div style={{ background:"#202c33", borderRadius:12, padding:16 }}>
+              <div style={{ fontSize:12, color:"#25D366", fontWeight:600, marginBottom:8 }}>Display Name</div>
+              <input value={newName} onChange={e => setNewName(e.target.value)}
+                style={{ width:"100%", padding:"10px 12px", background:"#2a3942", border:"none", borderRadius:10, color:"#e9edef", fontSize:15, outline:"none", boxSizing:"border-box", marginBottom:10 }} />
+              <div onClick={saveName} style={{ padding:"10px", background:"#25D366", borderRadius:10, textAlign:"center", color:"#fff", fontWeight:700, cursor:"pointer" }}>Save Name</div>
+            </div>
+
+            {/* Email */}
+            <div style={{ background:"#202c33", borderRadius:12, padding:16 }}>
+              <div style={{ fontSize:12, color:"#25D366", fontWeight:600, marginBottom:4 }}>Email</div>
+              <div style={{ color:"#e9edef", fontSize:15 }}>{user?.email}</div>
+            </div>
+
+            {/* Logout */}
+            <div onClick={logout} style={{ padding:"14px", background:"#ef4444", borderRadius:12, textAlign:"center", color:"#fff", fontWeight:700, cursor:"pointer" }}>
+              🚪 Logout
+            </div>
+          </div>
+        )}
+
+        {/* LANGUAGE TAB */}
+        {settingsTab === "language" && (
+          <div>
+            <div style={{ background:"#202c33", borderRadius:12, padding:12, marginBottom:12 }}>
+              <div style={{ fontSize:13, color:"#25D366", fontWeight:600, marginBottom:8 }}>Current: {selectedLanguage}</div>
+              <input value={langSearch} onChange={e => setLangSearch(e.target.value)} placeholder="Search language..."
+                style={{ width:"100%", padding:"10px 12px", background:"#2a3942", border:"none", borderRadius:10, color:"#e9edef", fontSize:14, outline:"none", boxSizing:"border-box" }} />
+            </div>
+            <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
+              {LANGUAGES.filter(l => l.toLowerCase().includes(langSearch.toLowerCase())).map(lang => (
+                <div key={lang} onClick={() => { setSelectedLanguage(lang); setLangSearch(""); }}
+                  style={{ padding:"12px 16px", background: selectedLanguage===lang ? "#2a3942" : "#202c33", borderRadius:10, cursor:"pointer", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                  <span style={{ color:"#e9edef", fontSize:14 }}>{lang}</span>
+                  {selectedLanguage===lang && <span style={{ color:"#25D366" }}>✓</span>}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* PINS TAB */}
+        {settingsTab === "pins" && (
+          <div>
+            <div style={{ fontSize:13, color:"#8696a0", marginBottom:12 }}>Pin important contacts to top of chat list</div>
+            {Object.entries(contacts).length === 0 ? (
+              <div style={{ textAlign:"center", color:"#8696a0", marginTop:40 }}>
+                <div style={{ fontSize:40 }}>📌</div>
+                <div style={{ marginTop:8 }}>No contacts to pin</div>
+              </div>
+            ) : Object.entries(contacts).map(([chatId, contact]) => (
+              <div key={chatId} style={{ display:"flex", alignItems:"center", padding:"12px 16px", background:"#202c33", borderRadius:12, marginBottom:8, gap:12 }}>
+                <div style={{ width:44, height:44, borderRadius:"50%", background:colorFromName(contact.name), display:"flex", alignItems:"center", justifyContent:"center", fontWeight:800, fontSize:15, color:"#fff" }}>
+                  {getInitials(contact.name)}
+                </div>
+                <div style={{ flex:1 }}>
+                  <div style={{ fontWeight:600, fontSize:15 }}>{contact.name}</div>
+                  <div style={{ fontSize:12, color:"#8696a0" }}>{contact.email}</div>
+                </div>
+                <div onClick={() => togglePin(chatId)} style={{ padding:"8px 14px", background: pinnedChats.includes(chatId) ? "#25D366" : "#2a3942", borderRadius:20, color:"#fff", fontSize:13, fontWeight:600, cursor:"pointer" }}>
+                  {pinnedChats.includes(chatId) ? "📌 Pinned" : "Pin"}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* KHAN AI TAB */}
+        {settingsTab === "ai" && (
+          <div style={{ display:"flex", flexDirection:"column", height:"calc(100vh - 160px)" }}>
+            <div style={{ background:"#202c33", borderRadius:12, padding:12, marginBottom:12, textAlign:"center" }}>
+              <div style={{ fontSize:32 }}>🤖</div>
+              <div style={{ fontWeight:700, fontSize:16, color:"#25D366" }}>Khan AI</div>
+              <div style={{ fontSize:12, color:"#8696a0" }}>Powered by Claude AI</div>
+            </div>
+            <div style={{ flex:1, overflowY:"auto", display:"flex", flexDirection:"column", gap:8, marginBottom:12 }}>
+              {aiMessages.length === 0 && (
+                <div style={{ textAlign:"center", color:"#8696a0", marginTop:40 }}>
+                  <div style={{ fontSize:40 }}>💬</div>
+                  <div style={{ marginTop:8 }}>Ask Khan AI anything!</div>
+                </div>
+              )}
+              {aiMessages.map((msg, i) => (
+                <div key={i} style={{ display:"flex", justifyContent: msg.role==="user" ? "flex-end" : "flex-start" }}>
+                  <div style={{ maxWidth:"80%", padding:"10px 14px", background: msg.role==="user" ? "#005c4b" : "#202c33", borderRadius: msg.role==="user" ? "14px 14px 3px 14px" : "14px 14px 14px 3px", fontSize:14, color:"#e9edef", lineHeight:1.5 }}>
+                    {msg.text}
+                  </div>
+                </div>
+              ))}
+              {aiLoading && (
+                <div style={{ display:"flex", justifyContent:"flex-start" }}>
+                  <div style={{ padding:"10px 16px", background:"#202c33", borderRadius:"14px 14px 14px 3px", color:"#8696a0", fontSize:14 }}>Thinking... 🤔</div>
+                </div>
+              )}
+            </div>
+            <div style={{ display:"flex", gap:8 }}>
+              <input value={aiInput} onChange={e => setAiInput(e.target.value)}
+                onKeyDown={e => e.key==="Enter" && askKhanAI()}
+                placeholder="Ask Khan AI..."
+                style={{ flex:1, padding:"12px 14px", background:"#202c33", border:"none", borderRadius:24, color:"#e9edef", fontSize:14, outline:"none" }} />
+              <div onClick={askKhanAI} style={{ width:46, height:46, borderRadius:"50%", background: aiInput.trim()?"#25D366":"#2a3942", display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", fontSize:18 }}>➤</div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
   const filteredCalls = callHistory.filter(c => {
     if (callFilter === "missed") return c.status === "missed";
     if (callFilter === "incoming") return c.direction === "incoming";
@@ -369,6 +579,12 @@ export default function App() {
 
   const myStatuses = statuses.filter(s => s.uid === user.uid);
   const othersStatuses = statuses.filter(s => s.uid !== user.uid);
+
+  const sortedContacts = Object.entries(contacts).sort(([aId], [bId]) => {
+    const aPin = pinnedChats.includes(aId) ? 0 : 1;
+    const bPin = pinnedChats.includes(bId) ? 0 : 1;
+    return aPin - bPin;
+  });
 
   return (
     <div style={{ display:"flex", height:"100vh", fontFamily:"'Segoe UI',sans-serif", background:"#111b21", color:"#e9edef", overflow:"hidden", position:"relative" }}>
@@ -452,9 +668,13 @@ export default function App() {
         {/* Header */}
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 16px", background:"#202c33", height:60 }}>
           <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-            <div style={{ width:42, height:42, borderRadius:"50%", background:colorFromName(user?.displayName), display:"flex", alignItems:"center", justifyContent:"center", fontWeight:800, fontSize:15, color:"#fff" }}>
-              {getInitials(user?.displayName || user?.email)}
-            </div>
+            {profilePic ? (
+              <img src={profilePic} alt="profile" style={{ width:42, height:42, borderRadius:"50%", objectFit:"cover" }} />
+            ) : (
+              <div style={{ width:42, height:42, borderRadius:"50%", background:colorFromName(user?.displayName), display:"flex", alignItems:"center", justifyContent:"center", fontWeight:800, fontSize:15, color:"#fff" }}>
+                {getInitials(user?.displayName || user?.email)}
+              </div>
+            )}
             <div>
               <div style={{ fontWeight:800, fontSize:15 }}>Khan Chats</div>
               <div style={{ fontSize:11, color:"#25D366" }}>Online ✨</div>
@@ -463,7 +683,7 @@ export default function App() {
           <div style={{ display:"flex", gap:12 }}>
             <span onClick={generateInvite} style={{ cursor:"pointer", fontSize:20 }}>🔗</span>
             <span onClick={() => setShowNewChat(!showNewChat)} style={{ cursor:"pointer", fontSize:20 }}>✏️</span>
-            <span onClick={logout} style={{ cursor:"pointer", fontSize:20 }}>🚪</span>
+            <span onClick={() => setShowSettings(true)} style={{ cursor:"pointer", fontSize:20 }}>⚙️</span>
           </div>
         </div>
 
@@ -493,23 +713,27 @@ export default function App() {
         )}
 
         <div style={{ flex:1, overflowY:"auto" }}>
-
           {/* CHATS TAB */}
           {currentView === "chats" && (
-            Object.keys(contacts).length === 0 ? (
+            sortedContacts.length === 0 ? (
               <div style={{ padding:24, textAlign:"center", color:"#8696a0" }}>
                 <div style={{ fontSize:40, marginBottom:12 }}>👥</div>
                 <div style={{ fontSize:14 }}>No contacts yet</div>
                 <div style={{ fontSize:12, marginTop:6 }}>Use ✏️ or 🔗 to get started</div>
               </div>
-            ) : Object.entries(contacts).map(([chatId, contact]) => (
+            ) : sortedContacts.map(([chatId, contact]) => (
               <div key={chatId} onClick={() => openChat(contact)}
                 style={{ display:"flex", alignItems:"center", padding:"12px 16px", cursor:"pointer", gap:12, background:activeChat?.chatId===chatId?"#2a3942":"transparent", borderBottom:"1px solid #1a2530" }}
                 onMouseEnter={e => { if (activeChat?.chatId!==chatId) e.currentTarget.style.background="#182229"; }}
                 onMouseLeave={e => { if (activeChat?.chatId!==chatId) e.currentTarget.style.background="transparent"; }}
               >
-                <div style={{ width:50, height:50, borderRadius:"50%", background:colorFromName(contact.name), display:"flex", alignItems:"center", justifyContent:"center", fontWeight:800, fontSize:16, color:"#fff", flexShrink:0 }}>
-                  {getInitials(contact.name)}
+                <div style={{ position:"relative", flexShrink:0 }}>
+                  <div style={{ width:50, height:50, borderRadius:"50%", background:colorFromName(contact.name), display:"flex", alignItems:"center", justifyContent:"center", fontWeight:800, fontSize:16, color:"#fff" }}>
+                    {getInitials(contact.name)}
+                  </div>
+                  {pinnedChats.includes(chatId) && (
+                    <div style={{ position:"absolute", top:-4, right:-4, fontSize:12 }}>📌</div>
+                  )}
                 </div>
                 <div style={{ flex:1, overflow:"hidden" }}>
                   <div style={{ display:"flex", justifyContent:"space-between", marginBottom:3 }}>
@@ -525,7 +749,6 @@ export default function App() {
           {/* STATUS TAB */}
           {currentView === "status" && (
             <div>
-              {/* Add Status */}
               <div style={{ padding:"10px 12px", borderBottom:"1px solid #1f2c33" }}>
                 <div onClick={() => setShowAddStatus(!showAddStatus)}
                   style={{ display:"flex", alignItems:"center", gap:12, padding:"8px 4px", cursor:"pointer" }}>
@@ -550,10 +773,7 @@ export default function App() {
                   </div>
                 )}
               </div>
-
-              {othersStatuses.length > 0 && (
-                <div style={{ padding:"6px 16px 4px", fontSize:11, color:"#8696a0", fontWeight:600, textTransform:"uppercase" }}>Recent Updates</div>
-              )}
+              {othersStatuses.length > 0 && <div style={{ padding:"6px 16px 4px", fontSize:11, color:"#8696a0", fontWeight:600, textTransform:"uppercase" }}>Recent Updates</div>}
               {othersStatuses.map((s, i) => (
                 <div key={i} onClick={() => setViewingStatus(s)}
                   style={{ display:"flex", alignItems:"center", padding:"12px 16px", gap:12, cursor:"pointer", borderBottom:"1px solid #1a2530" }}>
