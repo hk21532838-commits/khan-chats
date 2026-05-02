@@ -17,7 +17,7 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getDatabase(app);
 
-const LANGUAGES = ["English","Urdu","Arabic","Hindi","Spanish","French","German","Chinese","Japanese","Korean","Portuguese","Russian","Turkish","Italian","Dutch","Polish","Swedish","Norwegian","Danish","Finnish","Greek","Hebrew","Persian","Bengali","Punjabi","Sindhi","Pashto","Swahili","Malay","Indonesian","Thai","Vietnamese","Romanian","Hungarian","Czech","Slovak","Bulgarian","Croatian","Serbian","Ukrainian","Catalan","Slovenian","Lithuanian","Latvian","Estonian","Albanian","Macedonian","Bosnian","Azerbaijani","Georgian","Armenian","Kazakh","Uzbek","Turkmen","Kyrgyz","Tajik","Mongolian","Tibetan","Nepali","Sinhala","Burmese","Khmer","Lao","Amharic","Somali","Yoruba","Igbo","Hausa","Zulu","Xhosa","Afrikaans","Malagasy","Sesotho","Shona","Maltese","Icelandic","Welsh","Irish","Scottish Gaelic","Basque","Galician","Belarusian","Moldovan","Luxembourgish","Faroese","Breton","Occitan","Corsican","Sardinian","Sicilian","Neapolitan","Venetian","Lombard","Piedmontese","Ligurian","Friulian","Romansh","Aragonese","Asturian","Mirandese","Extremaduran","Fula","Wolof","Bambara","Moore","Lingala","Kinyarwanda","Kirundi","Luganda","Chichewa","Tswana","Sotho","Tsonga"];
+const LANGUAGES = ["English","Urdu","Arabic","Hindi","Spanish","French","German","Chinese","Japanese","Korean","Portuguese","Russian","Turkish","Italian","Dutch","Polish","Swedish","Norwegian","Danish","Finnish","Greek","Hebrew","Persian","Bengali","Punjabi","Sindhi","Pashto","Swahili","Malay","Indonesian","Thai","Vietnamese","Romanian","Hungarian","Czech","Slovak","Bulgarian","Croatian","Serbian","Ukrainian","Catalan","Slovenian","Lithuanian","Latvian","Estonian","Albanian","Macedonian","Bosnian","Azerbaijani","Georgian","Armenian","Kazakh","Uzbek","Turkmen","Kyrgyz","Tajik","Mongolian","Tibetan","Nepali","Sinhala","Burmese","Khmer","Lao","Amharic","Somali","Yoruba","Igbo","Hausa","Zulu","Xhosa","Afrikaans","Malagasy","Sesotho","Shona","Maltese","Icelandic","Welsh","Irish","Scottish Gaelic","Basque","Galician","Belarusian","Moldovan","Luxembourgish","Faroese","Breton","Occitan","Corsican","Sardinian","Sicilian","Neapolitan","Venetian","Lombard","Piedmontese","Ligurian","Friulian","Romansh","Aragonese","Asturian","Mirandese","Fula","Wolof","Bambara","Moore","Lingala","Kinyarwanda","Kirundi","Luganda","Chichewa","Tswana","Sotho","Tsonga"];
 
 function formatTime(ts) {
   if (!ts) return "";
@@ -66,6 +66,14 @@ export default function App() {
   const [authLoading, setAuthLoading] = useState(false);
   const [contacts, setContacts] = useState({});
   const [pinnedChats, setPinnedChats] = useState([]);
+  const [lockedChats, setLockedChats] = useState({});
+  const [unlockedChats, setUnlockedChats] = useState([]);
+  const [showLockModal, setShowLockModal] = useState(null);
+  const [showUnlockModal, setShowUnlockModal] = useState(null);
+  const [lockPin, setLockPin] = useState("");
+  const [unlockPin, setUnlockPin] = useState("");
+  const [lockError, setLockError] = useState("");
+  const [showLockedSection, setShowLockedSection] = useState(false);
   const [activeChat, setActiveChat] = useState(null);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
@@ -115,7 +123,7 @@ export default function App() {
       if (u) {
         setUser(u); setScreen("chat"); setNewName(u.displayName || "");
         await set(ref(db, `users/${u.uid}`), { uid: u.uid, name: u.displayName || u.email.split("@")[0], email: u.email, online: true, lastSeen: serverTimestamp() });
-        loadContacts(u); loadStatuses(); loadCallHistory(u); loadPins(u); loadProfilePic(u);
+        loadContacts(u); loadStatuses(); loadCallHistory(u); loadPins(u); loadProfilePic(u); loadLockedChats(u);
       } else { setUser(null); setScreen("login"); }
       setLoading(false);
     });
@@ -151,15 +159,15 @@ export default function App() {
   };
 
   const loadPins = (u) => {
-    onValue(ref(db, `pins/${u.uid}`), (snap) => {
-      setPinnedChats(snap.val() || []);
-    });
+    onValue(ref(db, `pins/${u.uid}`), (snap) => { setPinnedChats(snap.val() || []); });
   };
 
   const loadProfilePic = (u) => {
-    onValue(ref(db, `profilePics/${u.uid}`), (snap) => {
-      if (snap.val()) setProfilePic(snap.val());
-    });
+    onValue(ref(db, `profilePics/${u.uid}`), (snap) => { if (snap.val()) setProfilePic(snap.val()); });
+  };
+
+  const loadLockedChats = (u) => {
+    onValue(ref(db, `lockedChats/${u.uid}`), (snap) => { setLockedChats(snap.val() || {}); });
   };
 
   const saveCall = (u, callData) => {
@@ -192,6 +200,40 @@ export default function App() {
     reader.onload = ev => saveProfilePic(ev.target.result);
     reader.readAsDataURL(file);
     e.target.value = "";
+  };
+
+  const lockChat = async (chatId) => {
+    if (lockPin.length < 4) { setLockError("PIN must be at least 4 digits"); return; }
+    const newLocked = { ...lockedChats, [chatId]: lockPin };
+    await set(ref(db, `lockedChats/${user.uid}`), newLocked);
+    setLockPin(""); setShowLockModal(null); setLockError("");
+    alert("Chat locked! 🔒");
+  };
+
+  const unlockChat = (chatId) => {
+    if (unlockPin === lockedChats[chatId]) {
+      setUnlockedChats(p => [...p, chatId]);
+      setUnlockPin(""); setShowUnlockModal(null); setLockError("");
+    } else {
+      setLockError("Wrong PIN! Try again");
+    }
+  };
+
+  const removeLock = async (chatId) => {
+    const newLocked = { ...lockedChats };
+    delete newLocked[chatId];
+    await set(ref(db, `lockedChats/${user.uid}`), newLocked);
+    setUnlockedChats(p => p.filter(id => id !== chatId));
+  };
+
+  const handleChatClick = (contact) => {
+    const chatId = contact.chatId;
+    if (lockedChats[chatId] && !unlockedChats.includes(chatId)) {
+      setShowUnlockModal(chatId);
+      setUnlockPin(""); setLockError("");
+    } else {
+      openChat(contact);
+    }
   };
 
   const askKhanAI = async () => {
@@ -335,7 +377,6 @@ export default function App() {
     } catch (err) {
       alert("Microphone/Camera access denied: " + err.message);
       setInCall(false);
-      saveCall(user, { name: activeChat.name, type, direction: "outgoing", status: "missed", duration: 0 });
     }
   };
 
@@ -428,10 +469,8 @@ export default function App() {
         <span onClick={() => setShowSettings(false)} style={{ fontSize:22, cursor:"pointer", color:"#8696a0" }}>←</span>
         <div style={{ fontWeight:700, fontSize:18, flex:1 }}>⚙️ Settings</div>
       </div>
-
-      {/* Settings Tabs */}
       <div style={{ display:"flex", background:"#202c33", borderBottom:"1px solid #1f2c33", overflowX:"auto" }}>
-        {[["profile","👤","Profile"],["language","🌐","Language"],["pins","📌","Pins"],["ai","🤖","Khan AI"]].map(([tab, icon, label]) => (
+        {[["profile","👤","Profile"],["language","🌐","Language"],["pins","📌","Pins"],["locks","🔒","Locks"],["ai","🤖","Khan AI"]].map(([tab, icon, label]) => (
           <div key={tab} onClick={() => setSettingsTab(tab)}
             style={{ padding:"10px 16px", cursor:"pointer", fontSize:12, fontWeight:600, whiteSpace:"nowrap",
               color: settingsTab===tab ? "#25D366" : "#8696a0",
@@ -440,13 +479,10 @@ export default function App() {
           </div>
         ))}
       </div>
-
       <div style={{ flex:1, overflowY:"auto", padding:16 }}>
 
-        {/* PROFILE TAB */}
         {settingsTab === "profile" && (
           <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
-            {/* Profile Picture */}
             <div style={{ textAlign:"center" }}>
               <div style={{ position:"relative", display:"inline-block" }}>
                 {profilePic ? (
@@ -461,29 +497,20 @@ export default function App() {
               <input type="file" accept="image/*" ref={profilePicRef} onChange={handleProfilePic} style={{ display:"none" }} />
               <div style={{ marginTop:8, color:"#8696a0", fontSize:13 }}>Tap camera to change photo</div>
             </div>
-
-            {/* Name */}
             <div style={{ background:"#202c33", borderRadius:12, padding:16 }}>
               <div style={{ fontSize:12, color:"#25D366", fontWeight:600, marginBottom:8 }}>Display Name</div>
               <input value={newName} onChange={e => setNewName(e.target.value)}
                 style={{ width:"100%", padding:"10px 12px", background:"#2a3942", border:"none", borderRadius:10, color:"#e9edef", fontSize:15, outline:"none", boxSizing:"border-box", marginBottom:10 }} />
               <div onClick={saveName} style={{ padding:"10px", background:"#25D366", borderRadius:10, textAlign:"center", color:"#fff", fontWeight:700, cursor:"pointer" }}>Save Name</div>
             </div>
-
-            {/* Email */}
             <div style={{ background:"#202c33", borderRadius:12, padding:16 }}>
               <div style={{ fontSize:12, color:"#25D366", fontWeight:600, marginBottom:4 }}>Email</div>
               <div style={{ color:"#e9edef", fontSize:15 }}>{user?.email}</div>
             </div>
-
-            {/* Logout */}
-            <div onClick={logout} style={{ padding:"14px", background:"#ef4444", borderRadius:12, textAlign:"center", color:"#fff", fontWeight:700, cursor:"pointer" }}>
-              🚪 Logout
-            </div>
+            <div onClick={logout} style={{ padding:"14px", background:"#ef4444", borderRadius:12, textAlign:"center", color:"#fff", fontWeight:700, cursor:"pointer" }}>🚪 Logout</div>
           </div>
         )}
 
-        {/* LANGUAGE TAB */}
         {settingsTab === "language" && (
           <div>
             <div style={{ background:"#202c33", borderRadius:12, padding:12, marginBottom:12 }}>
@@ -503,7 +530,6 @@ export default function App() {
           </div>
         )}
 
-        {/* PINS TAB */}
         {settingsTab === "pins" && (
           <div>
             <div style={{ fontSize:13, color:"#8696a0", marginBottom:12 }}>Pin important contacts to top of chat list</div>
@@ -529,7 +555,46 @@ export default function App() {
           </div>
         )}
 
-        {/* KHAN AI TAB */}
+        {settingsTab === "locks" && (
+          <div>
+            <div style={{ background:"#202c33", borderRadius:12, padding:12, marginBottom:12 }}>
+              <div style={{ fontSize:13, color:"#25D366", fontWeight:600, marginBottom:4 }}>🔒 Chat Lock</div>
+              <div style={{ fontSize:12, color:"#8696a0" }}>Lock individual chats with a PIN. Locked chats are hidden and require PIN to open.</div>
+            </div>
+            {Object.entries(contacts).length === 0 ? (
+              <div style={{ textAlign:"center", color:"#8696a0", marginTop:40 }}>
+                <div style={{ fontSize:40 }}>🔒</div>
+                <div style={{ marginTop:8 }}>No contacts to lock</div>
+              </div>
+            ) : Object.entries(contacts).map(([chatId, contact]) => (
+              <div key={chatId} style={{ display:"flex", alignItems:"center", padding:"12px 16px", background:"#202c33", borderRadius:12, marginBottom:8, gap:12 }}>
+                <div style={{ width:44, height:44, borderRadius:"50%", background:colorFromName(contact.name), display:"flex", alignItems:"center", justifyContent:"center", fontWeight:800, fontSize:15, color:"#fff" }}>
+                  {getInitials(contact.name)}
+                </div>
+                <div style={{ flex:1 }}>
+                  <div style={{ fontWeight:600, fontSize:15 }}>{contact.name}</div>
+                  <div style={{ fontSize:12, color: lockedChats[chatId] ? "#ef4444" : "#8696a0" }}>
+                    {lockedChats[chatId] ? "🔒 Locked" : "🔓 Unlocked"}
+                  </div>
+                </div>
+                <div style={{ display:"flex", gap:8 }}>
+                  {lockedChats[chatId] ? (
+                    <div onClick={() => { if (window.confirm("Remove lock from this chat?")) removeLock(chatId); }}
+                      style={{ padding:"8px 12px", background:"#ef4444", borderRadius:20, color:"#fff", fontSize:12, fontWeight:600, cursor:"pointer" }}>
+                      Remove Lock
+                    </div>
+                  ) : (
+                    <div onClick={() => { setShowLockModal(chatId); setLockPin(""); setLockError(""); }}
+                      style={{ padding:"8px 12px", background:"#25D366", borderRadius:20, color:"#fff", fontSize:12, fontWeight:600, cursor:"pointer" }}>
+                      🔒 Lock
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
         {settingsTab === "ai" && (
           <div style={{ display:"flex", flexDirection:"column", height:"calc(100vh - 160px)" }}>
             <div style={{ background:"#202c33", borderRadius:12, padding:12, marginBottom:12, textAlign:"center" }}>
@@ -558,14 +623,55 @@ export default function App() {
               )}
             </div>
             <div style={{ display:"flex", gap:8 }}>
-              <input value={aiInput} onChange={e => setAiInput(e.target.value)}
-                onKeyDown={e => e.key==="Enter" && askKhanAI()}
-                placeholder="Ask Khan AI..."
+              <input value={aiInput} onChange={e => setAiInput(e.target.value)} onKeyDown={e => e.key==="Enter" && askKhanAI()} placeholder="Ask Khan AI..."
                 style={{ flex:1, padding:"12px 14px", background:"#202c33", border:"none", borderRadius:24, color:"#e9edef", fontSize:14, outline:"none" }} />
               <div onClick={askKhanAI} style={{ width:46, height:46, borderRadius:"50%", background: aiInput.trim()?"#25D366":"#2a3942", display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", fontSize:18 }}>➤</div>
             </div>
           </div>
         )}
+      </div>
+    </div>
+  );
+
+  // LOCK MODAL
+  if (showLockModal) return (
+    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.8)", zIndex:10000, display:"flex", alignItems:"center", justifyContent:"center" }}>
+      <div style={{ background:"#202c33", borderRadius:20, padding:28, maxWidth:320, width:"90%", textAlign:"center" }}>
+        <div style={{ fontSize:40, marginBottom:12 }}>🔒</div>
+        <h3 style={{ color:"#e9edef", margin:"0 0 8px" }}>Set Chat Lock PIN</h3>
+        <p style={{ color:"#8696a0", fontSize:13, marginBottom:16 }}>Enter a PIN to lock this chat</p>
+        <input value={lockPin} onChange={e => setLockPin(e.target.value.replace(/\D/g, ""))}
+          placeholder="Enter PIN (min 4 digits)" type="password" maxLength={8}
+          style={{ width:"100%", padding:"12px", background:"#2a3942", border:"none", borderRadius:10, color:"#e9edef", fontSize:18, outline:"none", textAlign:"center", letterSpacing:6, boxSizing:"border-box", marginBottom:8 }} />
+        {lockError && <div style={{ color:"#ef4444", fontSize:13, marginBottom:8 }}>{lockError}</div>}
+        <div style={{ display:"flex", gap:8, marginTop:8 }}>
+          <div onClick={() => { setShowLockModal(null); setLockPin(""); setLockError(""); }}
+            style={{ flex:1, padding:"12px", background:"#2a3942", borderRadius:10, color:"#8696a0", fontWeight:700, cursor:"pointer" }}>Cancel</div>
+          <div onClick={() => lockChat(showLockModal)}
+            style={{ flex:1, padding:"12px", background:"#25D366", borderRadius:10, color:"#fff", fontWeight:700, cursor:"pointer" }}>Lock Chat</div>
+        </div>
+      </div>
+    </div>
+  );
+
+  // UNLOCK MODAL
+  if (showUnlockModal) return (
+    <div style={{ position:"fixed", inset:0, background:"#111b21", zIndex:10000, display:"flex", alignItems:"center", justifyContent:"center" }}>
+      <div style={{ background:"#202c33", borderRadius:20, padding:28, maxWidth:320, width:"90%", textAlign:"center" }}>
+        <div style={{ fontSize:50, marginBottom:12 }}>🔐</div>
+        <h3 style={{ color:"#e9edef", margin:"0 0 8px" }}>Chat is Locked</h3>
+        <p style={{ color:"#8696a0", fontSize:13, marginBottom:16 }}>Enter PIN to unlock this chat</p>
+        <input value={unlockPin} onChange={e => setUnlockPin(e.target.value.replace(/\D/g, ""))}
+          placeholder="Enter PIN" type="password" maxLength={8}
+          onKeyDown={e => e.key==="Enter" && unlockChat(showUnlockModal)}
+          style={{ width:"100%", padding:"12px", background:"#2a3942", border:"none", borderRadius:10, color:"#e9edef", fontSize:18, outline:"none", textAlign:"center", letterSpacing:6, boxSizing:"border-box", marginBottom:8 }} />
+        {lockError && <div style={{ color:"#ef4444", fontSize:13, marginBottom:8 }}>{lockError}</div>}
+        <div style={{ display:"flex", gap:8, marginTop:8 }}>
+          <div onClick={() => { setShowUnlockModal(null); setUnlockPin(""); setLockError(""); }}
+            style={{ flex:1, padding:"12px", background:"#2a3942", borderRadius:10, color:"#8696a0", fontWeight:700, cursor:"pointer" }}>Cancel</div>
+          <div onClick={() => unlockChat(showUnlockModal)}
+            style={{ flex:1, padding:"12px", background:"#25D366", borderRadius:10, color:"#fff", fontWeight:700, cursor:"pointer" }}>Unlock</div>
+        </div>
       </div>
     </div>
   );
@@ -580,7 +686,11 @@ export default function App() {
   const myStatuses = statuses.filter(s => s.uid === user.uid);
   const othersStatuses = statuses.filter(s => s.uid !== user.uid);
 
-  const sortedContacts = Object.entries(contacts).sort(([aId], [bId]) => {
+  const allContacts = Object.entries(contacts);
+  const unlockedContacts = allContacts.filter(([chatId]) => !lockedChats[chatId] || unlockedChats.includes(chatId));
+  const lockedContactsList = allContacts.filter(([chatId]) => lockedChats[chatId] && !unlockedChats.includes(chatId));
+
+  const sortedContacts = unlockedContacts.sort(([aId], [bId]) => {
     const aPin = pinnedChats.includes(aId) ? 0 : 1;
     const bPin = pinnedChats.includes(bId) ? 0 : 1;
     return aPin - bPin;
@@ -665,7 +775,6 @@ export default function App() {
 
       {/* SIDEBAR */}
       <div style={{ width:340, minWidth:340, display:"flex", flexDirection:"column", borderRight:"1px solid #1f2c33" }}>
-        {/* Header */}
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 16px", background:"#202c33", height:60 }}>
           <div style={{ display:"flex", alignItems:"center", gap:10 }}>
             {profilePic ? (
@@ -687,7 +796,6 @@ export default function App() {
           </div>
         </div>
 
-        {/* Tabs */}
         <div style={{ display:"flex", background:"#202c33", borderBottom:"1px solid #1f2c33" }}>
           {[["chats","💬","Chats"],["status","🔵","Status"],["calls","📋","Calls"]].map(([view, icon, label]) => (
             <div key={view} onClick={() => setCurrentView(view)}
@@ -699,7 +807,6 @@ export default function App() {
           ))}
         </div>
 
-        {/* New Chat */}
         {showNewChat && currentView === "chats" && (
           <div style={{ padding:"10px 12px", background:"#182229", borderBottom:"1px solid #1f2c33" }}>
             <input value={newChatEmail} onChange={e => setNewChatEmail(e.target.value)} placeholder="Enter friend's email..."
@@ -715,35 +822,61 @@ export default function App() {
         <div style={{ flex:1, overflowY:"auto" }}>
           {/* CHATS TAB */}
           {currentView === "chats" && (
-            sortedContacts.length === 0 ? (
-              <div style={{ padding:24, textAlign:"center", color:"#8696a0" }}>
-                <div style={{ fontSize:40, marginBottom:12 }}>👥</div>
-                <div style={{ fontSize:14 }}>No contacts yet</div>
-                <div style={{ fontSize:12, marginTop:6 }}>Use ✏️ or 🔗 to get started</div>
-              </div>
-            ) : sortedContacts.map(([chatId, contact]) => (
-              <div key={chatId} onClick={() => openChat(contact)}
-                style={{ display:"flex", alignItems:"center", padding:"12px 16px", cursor:"pointer", gap:12, background:activeChat?.chatId===chatId?"#2a3942":"transparent", borderBottom:"1px solid #1a2530" }}
-                onMouseEnter={e => { if (activeChat?.chatId!==chatId) e.currentTarget.style.background="#182229"; }}
-                onMouseLeave={e => { if (activeChat?.chatId!==chatId) e.currentTarget.style.background="transparent"; }}
-              >
-                <div style={{ position:"relative", flexShrink:0 }}>
-                  <div style={{ width:50, height:50, borderRadius:"50%", background:colorFromName(contact.name), display:"flex", alignItems:"center", justifyContent:"center", fontWeight:800, fontSize:16, color:"#fff" }}>
-                    {getInitials(contact.name)}
-                  </div>
-                  {pinnedChats.includes(chatId) && (
-                    <div style={{ position:"absolute", top:-4, right:-4, fontSize:12 }}>📌</div>
+            <div>
+              {sortedContacts.length === 0 && lockedContactsList.length === 0 ? (
+                <div style={{ padding:24, textAlign:"center", color:"#8696a0" }}>
+                  <div style={{ fontSize:40, marginBottom:12 }}>👥</div>
+                  <div style={{ fontSize:14 }}>No contacts yet</div>
+                  <div style={{ fontSize:12, marginTop:6 }}>Use ✏️ or 🔗 to get started</div>
+                </div>
+              ) : (
+                <>
+                  {sortedContacts.map(([chatId, contact]) => (
+                    <div key={chatId} onClick={() => handleChatClick(contact)}
+                      style={{ display:"flex", alignItems:"center", padding:"12px 16px", cursor:"pointer", gap:12, background:activeChat?.chatId===chatId?"#2a3942":"transparent", borderBottom:"1px solid #1a2530" }}
+                      onMouseEnter={e => { if (activeChat?.chatId!==chatId) e.currentTarget.style.background="#182229"; }}
+                      onMouseLeave={e => { if (activeChat?.chatId!==chatId) e.currentTarget.style.background="transparent"; }}
+                    >
+                      <div style={{ position:"relative", flexShrink:0 }}>
+                        <div style={{ width:50, height:50, borderRadius:"50%", background:colorFromName(contact.name), display:"flex", alignItems:"center", justifyContent:"center", fontWeight:800, fontSize:16, color:"#fff" }}>
+                          {getInitials(contact.name)}
+                        </div>
+                        {pinnedChats.includes(chatId) && <div style={{ position:"absolute", top:-4, right:-4, fontSize:12 }}>📌</div>}
+                      </div>
+                      <div style={{ flex:1, overflow:"hidden" }}>
+                        <div style={{ display:"flex", justifyContent:"space-between", marginBottom:3 }}>
+                          <span style={{ fontWeight:700, fontSize:15 }}>{contact.name}</span>
+                          <span style={{ fontSize:11, color:"#8696a0" }}>{formatTime(contact.lastTime)}</span>
+                        </div>
+                        <div style={{ fontSize:13, color:"#8696a0", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{contact.lastMsg || contact.email}</div>
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* Locked Chats Section */}
+                  {lockedContactsList.length > 0 && (
+                    <div>
+                      <div onClick={() => setShowLockedSection(!showLockedSection)}
+                        style={{ display:"flex", alignItems:"center", padding:"10px 16px", cursor:"pointer", background:"#182229", borderBottom:"1px solid #1a2530", gap:8 }}>
+                        <span style={{ fontSize:16 }}>🔒</span>
+                        <span style={{ fontWeight:600, fontSize:14, color:"#8696a0", flex:1 }}>Locked Chats ({lockedContactsList.length})</span>
+                        <span style={{ color:"#8696a0", fontSize:12 }}>{showLockedSection ? "▲" : "▼"}</span>
+                      </div>
+                      {showLockedSection && lockedContactsList.map(([chatId, contact]) => (
+                        <div key={chatId} onClick={() => handleChatClick(contact)}
+                          style={{ display:"flex", alignItems:"center", padding:"12px 16px", cursor:"pointer", gap:12, background:"#0d1418", borderBottom:"1px solid #1a2530" }}>
+                          <div style={{ width:50, height:50, borderRadius:"50%", background:"#374045", display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, flexShrink:0 }}>🔒</div>
+                          <div style={{ flex:1 }}>
+                            <div style={{ fontWeight:700, fontSize:15, color:"#8696a0" }}>••••••••</div>
+                            <div style={{ fontSize:13, color:"#8696a0" }}>Tap to unlock</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   )}
-                </div>
-                <div style={{ flex:1, overflow:"hidden" }}>
-                  <div style={{ display:"flex", justifyContent:"space-between", marginBottom:3 }}>
-                    <span style={{ fontWeight:700, fontSize:15 }}>{contact.name}</span>
-                    <span style={{ fontSize:11, color:"#8696a0" }}>{formatTime(contact.lastTime)}</span>
-                  </div>
-                  <div style={{ fontSize:13, color:"#8696a0", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{contact.lastMsg || contact.email}</div>
-                </div>
-              </div>
-            ))
+                </>
+              )}
+            </div>
           )}
 
           {/* STATUS TAB */}
