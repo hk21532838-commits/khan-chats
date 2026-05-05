@@ -1,7 +1,7 @@
-import{useState,useEffect,useRef,useCallback}from"react";
-import{initializeApp}from"firebase/app";
-import{getAuth,createUserWithEmailAndPassword,signInWithEmailAndPassword,signOut,onAuthStateChanged,updateProfile}from"firebase/auth";
-import{getDatabase,ref,push,onValue,set,get,serverTimestamp,off}from"firebase/database";
+import {useState,useEffect,useRef,useCallback} from "react";
+import {initializeApp} from "firebase/app";
+import {getAuth,createUserWithEmailAndPassword,signInWithEmailAndPassword,signOut,onAuthStateChanged,updateProfile} from "firebase/auth";
+import {getDatabase,ref,push,onValue,set,get,serverTimestamp,off,update,query,orderByChild,limitToLast} from "firebase/database";
 
 const FC={apiKey:"AIzaSyDJt8Pf6bC938Q9Ufxwj6xSREV0xcQf6_I",authDomain:"khan-chats-d9607.firebaseapp.com",projectId:"khan-chats-d9607",storageBucket:"khan-chats-d9607.firebasestorage.app",messagingSenderId:"646302896729",appId:"1:646302896729:web:41b2d05775c704ad43d748",databaseURL:"https://khan-chats-d9607-default-rtdb.firebaseio.com"};
 const app=initializeApp(FC);
@@ -15,6 +15,9 @@ const T={bg:"#080E1A",card:"#0F1923",card2:"#162030",card3:"#1C2940",blue:"#4F8E
 const GF=`@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Poppins:wght@500;600;700;800;900&display=swap');`;
 const LANGS=["English","Urdu","Arabic","Hindi","Spanish","French","German","Chinese","Japanese","Korean","Portuguese","Russian","Turkish","Italian","Dutch","Polish","Swedish","Danish","Finnish","Greek","Hebrew","Persian","Bengali","Punjabi","Swahili","Malay","Indonesian","Thai","Vietnamese"];
 const EMOJIS=["😀","😂","❤️","👍","🔥","😍","🎉","👏","😎","🙌","💯","✨","🥰","😘","🤩","💪","🙏","😅","🤔","👋","🎯","💡","⭐","🌟","🚀","💬","🎊","😊","🤝","🎮","😭","🤣","😱","🥳","🤗","😴","🤑","👀","💔","🎵"];
+
+// NEW: Reactions
+const REACTIONS = ["👍","❤️","😂","😮","😢","😡","🎉","🙏"];
 
 const ft=ts=>{if(!ts)return"";return new Date(ts).toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit"});};
 const gi=n=>{if(!n)return"?";return n.split(" ").map(w=>w[0]).join("").toUpperCase().slice(0,2);};
@@ -75,6 +78,33 @@ const[isRecording,setIsRecording]=useState(false);const[recTime,setRecTime]=useS
 const[recentAct,setRecentAct]=useState([]);
 const[chatBg,setChatBg]=useState("dots");
 
+// NEW: Forward message state
+const[forwardModal,setForwardModal]=useState(null);
+const[selectedForwards,setSelectedForwards]=useState([]);
+
+// NEW: Search in chat
+const[chatSearchQ,setChatSearchQ]=useState("");
+const[searchResults,setSearchResults]=useState([]);
+const[showChatSearch,setShowChatSearch]=useState(false);
+
+// NEW: Pinned messages in chat
+const[pinnedMsgs,setPinnedMsgs]=useState([]);
+
+// NEW: Voice note URL
+const[voiceNote,setVoiceNote]=useState(null);
+
+// NEW: Scheduled messages
+const[showSchedule,setShowSchedule]=useState(false);
+const[scheduleTime,setScheduleTime]=useState("");
+const[scheduledMsg,setScheduledMsg]=useState("");
+
+// NEW: Group chats
+const[groups,setGroups]=useState([]);
+const[showGroupModal,setShowGroupModal]=useState(false);
+const[groupName,setGroupName]=useState("");
+const[groupMembers,setGroupMembers]=useState([]);
+const[groupSearch,setGroupSearch]=useState("");
+
 const endRef=useRef(null);const fileRef=useRef(null);const sFRef=useRef(null);const picRef=useRef(null);
 const acRef=useRef(null);const lvRef=useRef(null);const rvRef=useRef(null);const pcRef=useRef(null);const lsRef=useRef(null);
 const typTimer=useRef(null);const notifId=useRef(0);const recTimer=useRef(null);const msgMenuRef=useRef(null);const aiEndRef=useRef(null);
@@ -82,6 +112,17 @@ const typTimer=useRef(null);const notifId=useRef(0);const recTimer=useRef(null);
 useEffect(()=>{acRef.current=activeChat;},[activeChat]);
 useEffect(()=>{endRef.current?.scrollIntoView({behavior:"smooth"});},[msgs,isTyping]);
 useEffect(()=>{aiEndRef.current?.scrollIntoView({behavior:"smooth"});},[aiMsgs,aiLoad,aiStream]);
+
+// NEW: Load pinned messages
+useEffect(()=>{
+  if(!activeChat)return;
+  const pinnedRef = ref(db, `chats/${activeChat.chatId}/pinned`);
+  onValue(pinnedRef, snap => {
+    if(snap.val()) setPinnedMsgs(Object.values(snap.val()));
+    else setPinnedMsgs([]);
+  });
+},[activeChat]);
+
 useEffect(()=>{
   const h=e=>{if(msgMenu&&msgMenuRef.current&&!msgMenuRef.current.contains(e.target))setMsgMenu(null);};
   document.addEventListener("mousedown",h);return()=>document.removeEventListener("mousedown",h);
@@ -92,6 +133,134 @@ const addToast=useCallback((name,text,contact)=>{
   setToasts(p=>[...p,{id,name,text,contact}]);
   setTimeout(()=>setToasts(p=>p.filter(t=>t.id!==id)),4000);
 },[]);
+
+// NEW: Add reaction to message
+const addReaction = async (msgId, reaction) => {
+  const reactRef = ref(db, `chats/${activeChat.chatId}/messages/${msgId}/reactions/${user.uid}`);
+  await set(reactRef, reaction);
+  setMsgMenu(null);
+};
+
+// NEW: Forward message
+const forwardMessage = async () => {
+  if(selectedForwards.length === 0 || !forwardModal) return;
+  const msgToForward = forwardModal;
+  for(const targetChatId of selectedForwards) {
+    const targetContact = contacts[targetChatId];
+    if(targetContact) {
+      await push(ref(db, `chats/${targetChatId}/messages`), {
+        text: msgToForward.text || (msgToForward.image ? "📷 Photo" : ""),
+        image: msgToForward.image || null,
+        senderUid: user.uid,
+        senderName: user.displayName,
+        timestamp: Date.now(),
+        forwarded: true,
+        originalSender: msgToForward.senderName
+      });
+      await set(ref(db, `userChats/${user.uid}/${targetChatId}/lastMsg`), msgToForward.text || "📷 Forwarded");
+      await set(ref(db, `userChats/${targetContact.uid}/${targetChatId}/lastMsg`), msgToForward.text || "📷 Forwarded");
+      await set(ref(db, `userChats/${user.uid}/${targetChatId}/lastTime`), serverTimestamp());
+      await set(ref(db, `userChats/${targetContact.uid}/${targetChatId}/lastTime`), serverTimestamp());
+    }
+  }
+  setForwardModal(null);
+  setSelectedForwards([]);
+  addToast("Success", `Forwarded to ${selectedForwards.length} chat(s)`);
+};
+
+// NEW: Pin message in chat
+const pinMessage = async (msgId, msg) => {
+  await set(ref(db, `chats/${activeChat.chatId}/pinned/${msgId}`), {
+    ...msg,
+    pinnedAt: Date.now(),
+    pinnedBy: user.uid
+  });
+  setMsgMenu(null);
+  addToast("Success", "Message pinned!");
+};
+
+// NEW: Unpin message
+const unpinMessage = async (msgId) => {
+  await set(ref(db, `chats/${activeChat.chatId}/pinned/${msgId}`), null);
+  addToast("Success", "Message unpinned");
+};
+
+// NEW: Search in chat
+const searchInChat = (query) => {
+  if(!query.trim()) {
+    setSearchResults([]);
+    return;
+  }
+  const results = msgs.filter(m => 
+    m.text && m.text.toLowerCase().includes(query.toLowerCase())
+  );
+  setSearchResults(results);
+};
+
+// NEW: Schedule message
+const scheduleMessage = async () => {
+  if(!scheduleTime || !scheduledMsg.trim()) return;
+  await push(ref(db, `scheduled/${user.uid}`), {
+    chatId: activeChat?.chatId,
+    text: scheduledMsg,
+    scheduleTime: new Date(scheduleTime).getTime(),
+    status: 'pending',
+    createdAt: Date.now()
+  });
+  setShowSchedule(false);
+  setScheduleTime("");
+  setScheduledMsg("");
+  addToast("Scheduled", "Message will be sent at selected time");
+};
+
+// NEW: Create group
+const createGroup = async () => {
+  if(!groupName.trim() || groupMembers.length === 0) return;
+  const groupId = gid(user.uid, Date.now().toString());
+  const memberIds = [user.uid, ...groupMembers.map(m => m.uid)];
+  const membersObj = {};
+  memberIds.forEach(mid => { membersObj[mid] = true; });
+  
+  await set(ref(db, `groups/${groupId}`), {
+    name: groupName,
+    members: membersObj,
+    admin: user.uid,
+    createdAt: serverTimestamp(),
+    type: 'group'
+  });
+  
+  // Add to userChats for all members
+  for(const mid of memberIds) {
+    await set(ref(db, `userChats/${mid}/${groupId}`), {
+      with: groupId,
+      lastMsg: "",
+      lastTime: serverTimestamp(),
+      unread: 0,
+      isGroup: true,
+      groupName: groupName
+    });
+  }
+  
+  setShowGroupModal(false);
+  setGroupName("");
+  setGroupMembers([]);
+  addToast("Group Created", `${groupName} created successfully`);
+};
+
+// NEW: Send voice note
+const sendVoiceNote = async () => {
+  if(!voiceNote) return;
+  const msg = {
+    text: "🎤 Voice message",
+    voiceUrl: voiceNote,
+    senderUid: user.uid,
+    senderName: user.displayName,
+    timestamp: Date.now(),
+    status: "sent"
+  };
+  await push(ref(db, `chats/${activeChat.chatId}/messages`), msg);
+  setVoiceNote(null);
+};
 
 useEffect(()=>{
   const unsub=onAuthStateChanged(auth,async u=>{
@@ -109,8 +278,16 @@ const loadAll=u=>{
   onValue(ref(db,`userChats/${u.uid}`),async snap=>{
     const data=snap.val()||{},map={},ur={};
     for(const chatId of Object.keys(data)){
-      const s=await get(ref(db,`users/${data[chatId].with}`));
-      if(s.exists()){map[chatId]={...s.val(),chatId,lastMsg:data[chatId].lastMsg||"",lastTime:data[chatId].lastTime||0};ur[chatId]=data[chatId].unread||0;}
+      if(data[chatId].isGroup) {
+        const gSnap = await get(ref(db, `groups/${chatId}`));
+        if(gSnap.exists()) {
+          map[chatId] = { ...gSnap.val(), chatId, isGroup: true, name: gSnap.val().name };
+          ur[chatId] = data[chatId].unread || 0;
+        }
+      } else {
+        const s=await get(ref(db,`users/${data[chatId].with}`));
+        if(s.exists()){map[chatId]={...s.val(),chatId,lastMsg:data[chatId].lastMsg||"",lastTime:data[chatId].lastTime||0};ur[chatId]=data[chatId].unread||0;}
+      }
     }
     setContacts(map);setUnread(ur);
     setRecentAct(Object.values(map).filter(c=>c.lastMsg&&c.lastTime).sort((a,b)=>b.lastTime-a.lastTime).slice(0,5));
@@ -122,6 +299,28 @@ const loadAll=u=>{
   onValue(ref(db,`lockedChats/${u.uid}`),snap=>{setLocks(snap.val()||{});});
   onValue(ref(db,`userBio/${u.uid}`),snap=>{if(snap.val())setBio(snap.val());});
   onValue(ref(db,`usernames/${u.uid}`),snap=>{if(snap.val())setUname(snap.val());});
+  
+  // Load scheduled messages
+  onValue(ref(db,`scheduled/${u.uid}`), snap => {
+    const scheds = snap.val() || {};
+    const now = Date.now();
+    Object.entries(scheds).forEach(([id, sched]) => {
+      if(sched.status === 'pending' && sched.scheduleTime <= now) {
+        sendScheduledMessage(id, sched);
+      }
+    });
+  });
+};
+
+const sendScheduledMessage = async (id, sched) => {
+  await push(ref(db, `chats/${sched.chatId}/messages`), {
+    text: sched.text,
+    senderUid: user.uid,
+    senderName: user.displayName,
+    timestamp: Date.now(),
+    isScheduled: true
+  });
+  await set(ref(db, `scheduled/${user.uid}/${id}/status`), 'sent');
 };
 
 const saveCall=(u,d)=>push(ref(db,`callHistory/${u.uid}`),{...d,timestamp:Date.now()});
@@ -141,6 +340,16 @@ const lockChat=async id=>{if(lPin.length<4){setLErr("4+ digits");return;}await s
 const unlockChat=id=>{if(ulPin===locks[id]){setUnlocked(p=>[...p,id]);setUlPin("");setUlModal(null);setLErr("");}else setLErr("Wrong PIN!");};
 const removeLock=async id=>{const n={...locks};delete n[id];await set(ref(db,`lockedChats/${user.uid}`),n);setUnlocked(p=>p.filter(x=>x!==id));};
 const handleChatClick=c=>{const{chatId}=c;if(locks[chatId]&&!unlocked.includes(chatId)){setUlModal(chatId);setUlPin("");setLErr("");}else openChat(c);};
+
+// NEW: Download media
+const downloadMedia = async (url, filename) => {
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+};
 
 const askAI=async()=>{
   if(!aiIn.trim()||aiLoad)return;
@@ -203,7 +412,7 @@ const startChat=async()=>{
   setNEmail("");setShowNew(false);openChat({...found,chatId});
 };
 const openChat=c=>{
-  setActiveChat(c);setNav("chat");setShowEmoji(false);setReplyTo(null);setMsgMenu(null);
+  setActiveChat(c);setNav("chat");setShowEmoji(false);setReplyTo(null);setMsgMenu(null);setChatSearchQ("");setSearchResults([]);
   set(ref(db,`userChats/${user.uid}/${c.chatId}/unread`),0);
   setUnread(p=>({...p,[c.chatId]:0}));
   off(ref(db,`chats/${c.chatId}/messages`));
@@ -241,7 +450,7 @@ const handleTyping=v=>{
   typTimer.current=setTimeout(()=>set(ref(db,`chats/${activeChat.chatId}/typing/${user.uid}`),null),2000);
 };
 const handleImg=e=>{const f=e.target.files[0];if(!f)return;if(f.size>2000000){alert("Max 2MB");return;}const r=new FileReader();r.onload=ev=>sendMsg(ev.target.result);r.readAsDataURL(f);e.target.value="";};
-const toggleRec=()=>{if(isRecording){setIsRecording(false);clearInterval(recTimer.current);setRecTime(0);alert("Voice notes coming soon!");}else{setIsRecording(true);recTimer.current=setInterval(()=>setRecTime(p=>p+1),1000);}};
+const toggleRec=()=>{if(isRecording){setIsRecording(false);clearInterval(recTimer.current);setRecTime(0);alert("Voice notes coming soon! Recording: "+fD(recTime));}else{setIsRecording(true);recTimer.current=setInterval(()=>setRecTime(p=>p+1),1000);}};
 const postS=async(imgData=null)=>{if(!sText.trim()&&!imgData)return;await push(ref(db,"statuses"),{uid:user.uid,name:user.displayName||user.email,text:sText.trim(),image:imgData||null,timestamp:Date.now()});setSText("");setShowAddS(false);};
 const handleSImg=e=>{const f=e.target.files[0];if(!f)return;if(f.size>500000){alert("Max 500KB");return;}const r=new FileReader();r.onload=ev=>postS(ev.target.result);r.readAsDataURL(f);e.target.value="";};
 const genInvite=()=>{setInvL(`${window.location.origin}?invite=${btoa(user.email)}`);setShowInvite(true);};
@@ -313,6 +522,28 @@ if(loading)return(<div style={{display:"flex",alignItems:"center",justifyContent
 
 if(screen==="login"||screen==="register")return(<div style={{display:"flex",alignItems:"center",justifyContent:"center",minHeight:"100vh",background:T.bg,fontFamily:"'Poppins',sans-serif",padding:20,animation:"fadeIn 0.5s ease"}}><style>{CSS}</style><div style={{width:"100%",maxWidth:420}}><div style={{textAlign:"center",marginBottom:44}}><div style={{width:88,height:88,borderRadius:28,background:T.grad,display:"flex",alignItems:"center",justifyContent:"center",fontSize:44,margin:"0 auto 20px",boxShadow:T.shadowL,animation:"pulse 3s infinite"}}>💬</div><h1 style={{color:T.text,fontWeight:900,fontSize:32,letterSpacing:"-0.8px"}}>Khan Chats</h1><p style={{color:T.muted,fontSize:13,marginTop:8}}>Your premium messaging experience</p></div><Card style={{padding:5,marginBottom:24}}><div style={{display:"flex",borderRadius:17}}>{["login","register"].map(s=>(<div key={s} onClick={()=>{setScreen(s);setAErr("");}} style={{flex:1,textAlign:"center",padding:"13px",cursor:"pointer",fontWeight:700,fontSize:14,background:screen===s?T.grad:"transparent",color:screen===s?"#fff":T.muted,borderRadius:15,margin:2,transition:"all 0.3s"}}>{s==="login"?"Sign In":"Sign Up"}</div>))}</div></Card><div style={{display:"flex",flexDirection:"column",gap:12}}>{screen==="register"&&<Inp value={dn} onChange={e=>setDn(e.target.value)} placeholder="Full name" />}<Inp value={em} onChange={e=>setEm(e.target.value)} placeholder="Email address" type="email" /><Inp value={pw} onChange={e=>setPw(e.target.value)} placeholder="Password (6+ chars)" type="password" onKeyDown={e=>e.key==="Enter"&&(screen==="login"?login():register())} /></div>{aErr&&<div style={{color:"#EF4444",fontSize:13,margin:"12px 0",padding:"10px 14px",background:"rgba(239,68,68,0.08)",borderRadius:12,border:"1px solid rgba(239,68,68,0.2)"}}>{aErr}</div>}<Btn onClick={screen==="login"?login:register} style={{marginTop:16,fontSize:15,padding:"15px",borderRadius:18,boxShadow:T.shadowL}}>{aLoad?"Please wait...":(screen==="login"?"Sign In →":"Create Account →")}</Btn><p style={{color:T.muted,fontSize:11,textAlign:"center",marginTop:22,lineHeight:1.8}}>Independent Messaging · Not affiliated with WhatsApp or Meta<br/><span onClick={()=>setPolicy("privacy")} style={{color:T.blue,cursor:"pointer"}}>Privacy Policy</span>{" · "}<span onClick={()=>setPolicy("terms")} style={{color:T.blue,cursor:"pointer"}}>Terms</span></p></div>{policy&&<Modal onClose={()=>setPolicy(null)}><Card style={{padding:28,maxHeight:"78vh",overflowY:"auto"}}><div style={{fontWeight:800,fontSize:18,color:T.text,marginBottom:14}}>{policy==="privacy"?"🔒 Privacy Policy":"📋 Terms"}</div><div style={{color:T.mutedL,fontSize:13,lineHeight:1.9}}>{policy==="privacy"?<><p>Khan Chats is independent and committed to your privacy.</p><p><strong style={{color:T.text}}>Data:</strong> Email, name, photo, messages.</p><p><strong style={{color:T.text}}>Security:</strong> Firebase.</p><p><strong style={{color:T.text}}>Rights:</strong> Delete anytime.</p></>:<><p>By using Khan Chats you agree.</p><p><strong style={{color:T.text}}>Use:</strong> Lawful only.</p><p><strong style={{color:T.text}}>Disclaimer:</strong> Not affiliated with WhatsApp or Meta.</p></>}</div><Btn onClick={()=>setPolicy(null)} style={{marginTop:18}}>Close</Btn></Card></Modal>}</div>);
 
+// Forward Modal
+if(forwardModal)return(<Modal onClose={()=>setForwardModal(null)}><Card style={{padding:20,maxHeight:"80vh",overflowY:"auto"}}><div style={{fontWeight:800,fontSize:18,color:T.text,marginBottom:14}}>↗️ Forward to</div>{Object.entries(contacts).map(([cid, contact])=>(
+  <div key={cid} onClick={()=>setSelectedForwards(prev=>prev.includes(cid)?prev.filter(x=>x!==cid):[...prev,cid])} style={{display:"flex",alignItems:"center",padding:"12px",background:selectedForwards.includes(cid)?T.card2:T.card,borderRadius:12,marginBottom:8,cursor:"pointer",border:`1px solid ${selectedForwards.includes(cid)?T.blue:T.border}`}}>
+    <Av name={contact.name} size={40} />
+    <div style={{flex:1,marginLeft:12}}><div style={{fontWeight:700,color:T.text}}>{contact.name}</div><div style={{fontSize:11,color:T.muted}}>{contact.email}</div></div>
+    {selectedForwards.includes(cid) && <span style={{color:T.blue,fontSize:20}}>✓</span>}
+  </div>
+))}
+<div style={{display:"flex",gap:10,marginTop:16}}><Btn onClick={()=>setForwardModal(null)} v="ghost" style={{flex:1}}>Cancel</Btn><Btn onClick={forwardMessage} style={{flex:1}}>Forward ({selectedForwards.length})</Btn></div></Card></Modal>);
+
+// Group Modal
+if(showGroupModal)return(<Modal onClose={()=>setShowGroupModal(false)}><Card style={{padding:24}}><div style={{fontWeight:800,fontSize:18,color:T.text,marginBottom:14}}>👥 Create Group</div><Inp value={groupName} onChange={e=>setGroupName(e.target.value)} placeholder="Group name" style={{marginBottom:12}} /><Inp value={groupSearch} onChange={e=>setGroupSearch(e.target.value)} placeholder="Search contacts..." style={{marginBottom:12}} /><div style={{maxHeight:200,overflowY:"auto",marginBottom:12}}>{Object.entries(contacts).filter(([,c])=>c.name?.toLowerCase().includes(groupSearch.toLowerCase())).map(([cid, contact])=>(
+  <div key={cid} onClick={()=>setGroupMembers(prev=>prev.some(m=>m.uid===contact.uid)?prev.filter(m=>m.uid!==contact.uid):[...prev,contact])} style={{display:"flex",alignItems:"center",padding:"10px",background:groupMembers.some(m=>m.uid===contact.uid)?T.card2:T.card,borderRadius:10,marginBottom:6,cursor:"pointer"}}>
+    <Av name={contact.name} size={36} />
+    <div style={{flex:1,marginLeft:10}}><div style={{fontWeight:600,fontSize:13,color:T.text}}>{contact.name}</div></div>
+    {groupMembers.some(m=>m.uid===contact.uid) && <span style={{color:T.blue}}>✓</span>}
+  </div>
+))}</div><div style={{display:"flex",gap:10}}><Btn onClick={()=>setShowGroupModal(false)} v="ghost" style={{flex:1}}>Cancel</Btn><Btn onClick={createGroup} style={{flex:1}}>Create Group</Btn></div></Card></Modal>);
+
+// Schedule Modal
+if(showSchedule)return(<Modal onClose={()=>setShowSchedule(false)}><Card style={{padding:24}}><div style={{fontWeight:800,fontSize:18,color:T.text,marginBottom:14}}>⏰ Schedule Message</div><textarea value={scheduledMsg} onChange={e=>setScheduledMsg(e.target.value)} placeholder="Message to schedule..." style={{width:"100%",padding:"12px",background:T.card2,border:`1.5px solid ${T.border}`,borderRadius:12,color:T.text,fontSize:13,minHeight:80,resize:"vertical",marginBottom:12}} /><input type="datetime-local" value={scheduleTime} onChange={e=>setScheduleTime(e.target.value)} style={{width:"100%",padding:"12px",background:T.card2,border:`1.5px solid ${T.border}`,borderRadius:12,color:T.text,marginBottom:12}} /><div style={{display:"flex",gap:10}}><Btn onClick={()=>setShowSchedule(false)} v="ghost" style={{flex:1}}>Cancel</Btn><Btn onClick={scheduleMessage} style={{flex:1}}>Schedule</Btn></div></Card></Modal>);
+
 if(showSett)return(
 <div style={{position:"fixed",inset:0,background:T.bg,zIndex:9999,display:"flex",flexDirection:"column",fontFamily:"'Inter',sans-serif",color:T.text,animation:"slideR 0.3s ease"}}>
 <style>{CSS}</style>
@@ -321,7 +552,7 @@ if(showSett)return(
 <div style={{fontWeight:800,fontSize:19,fontFamily:"'Poppins',sans-serif"}}>Settings</div>
 </div>
 <div style={{display:"flex",background:T.card,borderBottom:`1px solid ${T.border}`,overflowX:"auto",padding:"0 6px"}}>
-{[["profile","👤","Profile"],["privacy","🔒","Privacy"],["notifs","🔔","Notifs"],["lang","🌐","Language"],["chat","🎨","Chat"],["ai","🤖","Khan AI"],["legal","📋","Legal"]].map(([tab,icon,label])=>(
+{[["profile","👤","Profile"],["privacy","🔒","Privacy"],["notifs","🔔","Notifs"],["lang","🌐","Language"],["chat","🎨","Chat"],["ai","🤖","Khan AI"],["groups","👥","Groups"],["legal","📋","Legal"]].map(([tab,icon,label])=>(
 <div key={tab} onClick={()=>setSTab(tab)} style={{padding:"11px 13px",cursor:"pointer",fontSize:11,fontWeight:700,whiteSpace:"nowrap",color:sTab===tab?T.blue:T.muted,borderBottom:sTab===tab?`2.5px solid ${T.blue}`:"2.5px solid transparent",transition:"all 0.2s"}}>{icon} {label}</div>
 ))}
 </div>
@@ -350,6 +581,7 @@ if(showSett)return(
 <Btn onClick={()=>setLogoutC(true)} v="danger" style={{marginBottom:10}}>🚪 Sign Out</Btn>
 <div onClick={()=>setDeleteC(true)} style={{padding:"12px",background:"transparent",borderRadius:14,textAlign:"center",color:"#EF4444",fontWeight:600,cursor:"pointer",border:"1px solid rgba(239,68,68,0.3)",fontSize:13}}>🗑️ Delete Account</div>
 </div>}
+{sTab==="groups"&&<div style={{animation:"slideUp 0.3s ease"}}><Btn onClick={()=>setShowGroupModal(true)} style={{marginBottom:14}}>+ Create New Group</Btn>{Object.entries(contacts).filter(([,c])=>c.isGroup).map(([gid,group])=>(<Card key={gid} style={{padding:15,marginBottom:10}}><div style={{display:"flex",alignItems:"center",gap:12}}><div style={{width:45,height:45,borderRadius:14,background:T.grad,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22}}>👥</div><div><div style={{fontWeight:700,color:T.text}}>{group.name}</div><div style={{fontSize:10,color:T.muted}}>Group</div></div></div></Card>))}</div>}
 {sTab==="privacy"&&<div style={{animation:"slideUp 0.3s ease"}}>{[["Last Seen","Show last active",true],["Online Status","Show when online",true],["Read Receipts","Show read ticks",true]].map(([t,d,v],i)=>(<Card key={i} style={{padding:"15px 18px",marginBottom:10}}><div style={{display:"flex",alignItems:"center",gap:12}}><div style={{flex:1}}><div style={{fontWeight:700,fontSize:13,color:T.text}}>{t}</div><div style={{fontSize:12,color:T.muted,marginTop:2}}>{d}</div></div><Toggle val={v} onToggle={()=>{}} /></div></Card>))}<Card style={{padding:"15px 18px"}}><div style={{fontWeight:700,fontSize:13,color:T.text,marginBottom:8}}>Blocked Contacts</div><div style={{color:T.muted,fontSize:13,textAlign:"center",padding:10}}>No blocked contacts</div></Card></div>}
 {sTab==="notifs"&&<div style={{animation:"slideUp 0.3s ease"}}>{[["Messages","msgs"],["Updates","updates"],["Calls","calls"]].map(([t,k])=>(<Card key={k} style={{padding:"15px 18px",marginBottom:10}}><div style={{display:"flex",alignItems:"center",gap:12}}><div style={{flex:1}}><div style={{fontWeight:700,fontSize:13,color:T.text}}>{t}</div></div><Toggle val={nSett[k]} onToggle={()=>setNSett(p=>({...p,[k]:!p[k]}))} /></div></Card>))}<Card style={{padding:"15px 18px",marginBottom:10}}><div style={{display:"flex",alignItems:"center",gap:12}}><div style={{flex:1}}><div style={{fontWeight:700,fontSize:13,color:T.text}}>Dark Mode</div></div><Toggle val={darkMode} onToggle={()=>setDarkMode(p=>!p)} /></div></Card></div>}
 {sTab==="lang"&&<div style={{animation:"slideUp 0.3s ease"}}><Card style={{padding:16,marginBottom:12}}><div style={{fontSize:10,color:T.blue,fontWeight:700,marginBottom:10,textTransform:"uppercase",letterSpacing:1.5}}>Selected: {lang}</div><Inp value={langQ} onChange={e=>setLangQ(e.target.value)} placeholder="Search languages..." /></Card>{LANGS.filter(l=>l.toLowerCase().includes(langQ.toLowerCase())).map(l=>(<div key={l} onClick={()=>{setLang(l);setLangQ("");}} style={{padding:"12px 16px",background:lang===l?T.card2:T.card,borderRadius:13,cursor:"pointer",display:"flex",justifyContent:"space-between",marginBottom:6,border:`1.5px solid ${lang===l?T.blue:T.border}`,transition:"all 0.15s"}}><span style={{color:T.text,fontSize:13,fontWeight:lang===l?700:400}}>{l}</span>{lang===l&&<span style={{color:T.blue,fontWeight:800}}>✓</span>}</div>))}</div>}
@@ -371,7 +603,7 @@ if(showSett)return(
 <div style={{fontWeight:700,fontSize:14,color:T.text,marginBottom:6}}>Khan AI Ready!</div>
 <div style={{fontSize:12,lineHeight:1.7,marginBottom:16}}>Ask me anything in English or Urdu</div>
 <div style={{display:"flex",flexWrap:"wrap",gap:8,justifyContent:"center"}}>
-{["Hello! 👋","Urdu mein baat karo 🇵🇰","What can you do?","Help me write something"].map(s=>(<div key={s} onClick={()=>setAiIn(s)} style={{padding:"7px 14px",background:T.card,borderRadius:20,color:T.blue,fontSize:12,fontWeight:600,cursor:"pointer",border:`1px solid ${T.border}`}}>{s}</div>))}
+{[["Hello! 👋"],["Urdu mein baat karo 🇵🇰"],["What can you do?"],["Help me write something"]].map(s=>(<div key={s} onClick={()=>setAiIn(s)} style={{padding:"7px 14px",background:T.card,borderRadius:20,color:T.blue,fontSize:12,fontWeight:600,cursor:"pointer",border:`1px solid ${T.border}`}}>{s}</div>))}
 </div>
 </div>
 )}
@@ -413,7 +645,7 @@ if(showSett)return(
 </div>
 )}
 
-{sTab==="legal"&&<div style={{animation:"slideUp 0.3s ease"}}>{[["🔒 Privacy Policy","privacy"],["📋 Terms","terms"],["📧 Contact Us","contact"],["❓ Help & FAQ","help"],["🗑️ Delete Account","delete"]].map(([title,action])=>(<Card key={action} style={{padding:"15px 18px",marginBottom:10,cursor:"pointer"}} onClick={()=>{if(action==="delete")setDeleteC(true);else if(action==="contact")alert("📧 khanchats.support@gmail.com");else if(action==="help")alert("❓ FAQ\n\n• Chat lock: Settings → Profile\n• Invite: Tap 🔗\n• AI: Settings → Khan AI");else setPolicy(action);}}><div style={{display:"flex",alignItems:"center",gap:12}}><div style={{flex:1}}><div style={{fontWeight:700,fontSize:13,color:T.text}}>{title}</div></div><span style={{color:T.muted,fontSize:18}}>›</span></div></Card>)}<Card style={{padding:18,marginTop:6,textAlign:"center"}}><div style={{fontWeight:800,fontSize:14,background:T.grad,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",fontFamily:"'Poppins',sans-serif",marginBottom:4}}>Khan Chats v1.0</div><div style={{fontSize:11,color:T.muted,lineHeight:1.8}}>Independent · Not affiliated with WhatsApp or Meta</div></Card></div>}
+{sTab==="legal"&&<div style={{animation:"slideUp 0.3s ease"}}>{[["🔒 Privacy Policy","privacy"],["📋 Terms","terms"],["📧 Contact Us","contact"],["❓ Help & FAQ","help"],["🗑️ Delete Account","delete"]].map(([title,action])=>(<Card key={action} style={{padding:"15px 18px",marginBottom:10,cursor:"pointer"}} onClick={()=>{if(action==="delete")setDeleteC(true);else if(action==="contact")alert("📧 khanchats.support@gmail.com");else if(action==="help")alert("❓ FAQ\n\n• Chat lock: Settings → Profile\n• Invite: Tap 🔗\n• AI: Settings → Khan AI\n• Forward: Tap & hold message → Forward\n• Schedule: Tap & hold → Schedule");else setPolicy(action);}}><div style={{display:"flex",alignItems:"center",gap:12}}><div style={{flex:1}}><div style={{fontWeight:700,fontSize:13,color:T.text}}>{title}</div></div><span style={{color:T.muted,fontSize:18}}>›</span></div></Card>)}<Card style={{padding:18,marginTop:6,textAlign:"center"}}><div style={{fontWeight:800,fontSize:14,background:T.grad,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",fontFamily:"'Poppins',sans-serif",marginBottom:4}}>Khan Chats v2.0</div><div style={{fontSize:11,color:T.muted,lineHeight:1.8}}>Independent · Not affiliated with WhatsApp or Meta</div><div style={{fontSize:10,color:T.muted,marginTop:6}}>✨ New: Reactions, Forward, Schedule, Groups, Search in chat, Pin messages</div></Card></div>}
 </div>
 
 {logoutC&&<Modal onClose={()=>setLogoutC(false)}><Card style={{padding:30,textAlign:"center"}}><div style={{fontSize:46,marginBottom:12}}>🚪</div><div style={{fontWeight:800,fontSize:18,color:T.text,marginBottom:8,fontFamily:"'Poppins',sans-serif"}}>Sign Out?</div><div style={{color:T.muted,fontSize:13,marginBottom:20}}>Are you sure?</div><div style={{display:"flex",gap:10}}><Btn onClick={()=>setLogoutC(false)} v="ghost" style={{flex:1}}>Cancel</Btn><Btn onClick={logout} v="danger" style={{flex:1}}>Sign Out</Btn></div></Card></Modal>}
@@ -441,16 +673,25 @@ return(
 {nav==="chat"&&activeChat?(
 <div style={{display:"flex",flexDirection:"column",height:"100%",background:T.bg}}>
 <div style={{display:"flex",alignItems:"center",padding:"12px 14px",background:T.card,gap:11,borderBottom:`1px solid ${T.border}`,boxShadow:"0 2px 14px rgba(0,0,0,0.3)",flexShrink:0,zIndex:10}}>
-<div onClick={()=>{setNav("home");setShowEmoji(false);setMsgMenu(null);setReplyTo(null);}} style={{width:36,height:36,borderRadius:11,background:T.card2,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:16,border:`1px solid ${T.border}`,flexShrink:0}}>←</div>
+<div onClick={()=>{setNav("home");setShowEmoji(false);setMsgMenu(null);setReplyTo(null);setShowChatSearch(false);setChatSearchQ("");}} style={{width:36,height:36,borderRadius:11,background:T.card2,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:16,border:`1px solid ${T.border}`,flexShrink:0}}>←</div>
 <div style={{width:42,height:42,borderRadius:14,background:cfn(activeChat.name),display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:16,color:"#fff",flexShrink:0,boxShadow:T.shadow}}>{gi(activeChat.name)}</div>
 <div style={{flex:1,overflow:"hidden"}}>
 <div style={{fontWeight:800,fontSize:15,color:T.text,fontFamily:"'Poppins',sans-serif",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{activeChat.name}</div>
 <div style={{fontSize:10,fontWeight:600,marginTop:1,color:isTyping?"#A78BFA":T.blue}}>{isTyping?"✍️ typing...":"● Online"}</div>
 </div>
 <div style={{display:"flex",gap:6,flexShrink:0}}>
+<div onClick={()=>setShowChatSearch(!showChatSearch)} style={{width:36,height:36,borderRadius:11,background:T.card2,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:16,border:`1px solid ${T.border}`}}>🔍</div>
 {[["📞",()=>startCall("audio")],["📹",()=>startCall("video")]].map(([icon,fn])=>(<div key={icon} onClick={fn} style={{width:36,height:36,borderRadius:11,background:T.card2,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:16,border:`1px solid ${T.border}`,transition:"all 0.15s"}}>{icon}</div>))}
 </div>
 </div>
+
+{showChatSearch&&<div style={{padding:"8px 12px",background:T.card2,borderBottom:`1px solid ${T.border}`,animation:"slideDown 0.2s ease"}}><Inp value={chatSearchQ} onChange={e=>{setChatSearchQ(e.target.value);searchInChat(e.target.value);}} placeholder="Search in chat..." autoFocus style={{background:T.card}} /></div>}
+
+{chatSearchQ && searchResults.length > 0 && <div style={{padding:"8px 12px",background:T.card2,borderBottom:`1px solid ${T.border}`,maxHeight:150,overflowY:"auto"}}><div style={{fontSize:10,color:T.muted,fontWeight:700,marginBottom:6}}>📋 {searchResults.length} results</div>{searchResults.map((r,i)=>(
+  <div key={i} style={{padding:"8px",background:T.card,borderRadius:8,marginBottom:4}}><div style={{fontSize:11,color:T.blue,fontWeight:600}}>{r.senderName}</div><div style={{fontSize:12,color:T.text}}>{r.text?.substring(0,60)}...</div></div>
+))}</div>}
+
+{pinnedMsgs.length > 0 && <div style={{padding:"8px 12px",background:"rgba(79,142,247,0.08)",borderBottom:`1px solid ${T.border}`,display:"flex",alignItems:"center",gap:8,overflowX:"auto"}}><span style={{fontSize:11,color:T.blue}}>📌 Pinned</span>{pinnedMsgs.slice(0,3).map((p,i)=>(<div key={i} style={{fontSize:11,color:T.muted,background:T.card2,padding:"4px 8px",borderRadius:12}}>{p.text?.substring(0,20)}</div>))}</div>}
 
 <div style={{flex:1,overflowY:"auto",padding:"14px 12px",display:"flex",flexDirection:"column",gap:2,position:"relative",...chatBgStyle()}} onClick={()=>{setMsgMenu(null);setShowEmoji(false);}}>
 {msgs.length===0&&<div style={{textAlign:"center",margin:"auto",color:T.muted,padding:40}}><div style={{fontSize:54,marginBottom:14,opacity:0.3}}>👋</div><div style={{fontSize:16,fontWeight:700,color:T.text,fontFamily:"'Poppins',sans-serif"}}>Say hello!</div><div style={{fontSize:12,marginTop:8}}>Start chatting with <strong style={{color:T.blue}}>{activeChat.name}</strong></div></div>}
@@ -463,23 +704,27 @@ const isDeleted=msg.deleted;
 const isLast=i===msgs.length-1;
 const msgKeys=Object.keys(msgs);
 const msgKey=msgKeys[i];
+const msgReactions = msg.reactions || {};
 return(
 <div key={i}>
 {showDay&&<div style={{textAlign:"center",margin:"10px 0 6px"}}><span style={{fontSize:11,color:T.mutedL,fontWeight:600,background:T.card2,padding:"4px 14px",borderRadius:20,border:`1px solid ${T.border}`}}>{dayLabel(msg.timestamp)}</span></div>}
-<div style={{display:"flex",justifyContent:isMine?"flex-end":"flex-start",marginBottom:showAv?5:1,animation:"msgIn 0.2s ease",position:"relative"}} onContextMenu={e=>{e.preventDefault();if(!isDeleted)setMsgMenu({id:i,msgId:msgKey,isMine,text:msg.text,x:e.clientX,y:e.clientY,msg});}}>
+<div style={{display:"flex",justifyContent:isMine?"flex-end":"flex-start",marginBottom:showAv?5:1,animation:"msgIn 0.2s ease",position:"relative"}} onContextMenu={e=>{e.preventDefault();if(!isDeleted)setMsgMenu({id:i,msgId:msgKey,isMine,text:msg.text,image:msg.image,voiceUrl:msg.voiceUrl,senderName:msg.senderName,msg:x:e.clientX,y:e.clientY,msg});}}>
 {!isMine&&<div style={{width:28,height:28,marginRight:7,flexShrink:0,alignSelf:"flex-end",marginBottom:2}}>{showAv&&<div style={{width:28,height:28,borderRadius:9,background:cfn(msg.senderName),display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:9,color:"#fff"}}>{gi(msg.senderName)}</div>}</div>}
 <div style={{maxWidth:"75%",display:"flex",flexDirection:"column",alignItems:isMine?"flex-end":"flex-start"}}>
 {msg.replyTo&&!isDeleted&&<div style={{padding:"6px 12px",background:isMine?"rgba(255,255,255,0.08)":"rgba(79,142,247,0.08)",borderRadius:"12px 12px 0 0",marginBottom:-2,borderLeft:`3px solid ${T.blue}`,maxWidth:"100%",overflow:"hidden"}}><div style={{fontSize:10,color:T.blue,fontWeight:700,marginBottom:1}}>{msg.replyTo.senderName}</div><div style={{fontSize:11,color:T.mutedL,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{msg.replyTo.text}</div></div>}
+{msg.forwarded && !isDeleted && <div style={{fontSize:9,color:T.mutedL,marginBottom:2}}>↗️ Forwarded from {msg.originalSender || msg.senderName}</div>}
 <div style={{padding:msg.image?"6px 6px 8px":(isDeleted?"10px 14px 8px":"11px 15px 9px"),background:isDeleted?"transparent":(isMine?T.gradS:T.card2),borderRadius:isMine?"20px 20px 5px 20px":"20px 20px 20px 5px",boxShadow:isDeleted?"none":(isMine?"0 3px 14px rgba(30,58,138,0.45)":"0 2px 10px rgba(0,0,0,0.3)"),border:isDeleted?`1px dashed ${T.border}`:(isMine?"none":`1px solid ${T.border}`),cursor:"context-menu"}}>
 {!isMine&&showAv&&!isDeleted&&<div style={{fontSize:10,color:cfn(msg.senderName),fontWeight:700,marginBottom:4}}>{msg.senderName}</div>}
 {isDeleted?(<div style={{fontSize:13,color:T.muted,fontStyle:"italic",display:"flex",alignItems:"center",gap:6}}><span>🚫</span>This message was deleted</div>):(<>
 {msg.image&&<div style={{position:"relative"}}><img src={msg.image} alt="s" onClick={e=>{e.stopPropagation();setPreviewImg(msg.image);}} style={{maxWidth:220,maxHeight:220,borderRadius:14,display:"block",cursor:"pointer",objectFit:"cover"}} /><div style={{position:"absolute",bottom:8,right:8,background:"rgba(0,0,0,0.65)",borderRadius:10,padding:"2px 8px",display:"flex",alignItems:"center",gap:4}}><span style={{fontSize:10,color:"rgba(255,255,255,0.9)"}}>{ft(msg.timestamp)}</span>{isMine&&<span style={{fontSize:11,color:isLast?"#60A5FA":"rgba(255,255,255,0.6)"}}>✓✓</span>}</div></div>}
-{msg.text&&!msg.image&&<p style={{margin:0,fontSize:14,lineHeight:1.65,color:T.text,wordBreak:"break-word",whiteSpace:"pre-wrap"}}>{msg.text}</p>}
+{msg.voiceUrl && <div style={{display:"flex",alignItems:"center",gap:8}}><span>🎤</span><audio controls src={msg.voiceUrl} style={{height:36}} /></div>}
+{msg.text&&!msg.image&&!msg.voiceUrl&&<p style={{margin:0,fontSize:14,lineHeight:1.65,color:T.text,wordBreak:"break-word",whiteSpace:"pre-wrap"}}>{msg.text}</p>}
 </>)}
 {!msg.image&&!isDeleted&&<div style={{display:"flex",justifyContent:"flex-end",alignItems:"center",gap:3,marginTop:4}}>
 <span style={{fontSize:10,color:isMine?"rgba(255,255,255,0.4)":T.muted}}>{ft(msg.timestamp)}</span>
 {isMine&&<span style={{fontSize:12,color:isLast?"#60A5FA":"rgba(255,255,255,0.45)",letterSpacing:-0.5}}>{isLast?"✓✓":"✓✓"}</span>}
 </div>}
+{Object.keys(msgReactions).length > 0 && !isDeleted && <div style={{display:"flex",gap:4,marginTop:4}}>{Object.entries(msgReactions).slice(0,3).map(([uid,react])=>(<span key={uid} style={{fontSize:12,background:"rgba(255,255,255,0.08)",padding:"2px 6px",borderRadius:12}}>{react}</span>))}</div>}
 </div>
 </div>
 </div>
@@ -491,7 +736,17 @@ return(
 </div>
 
 {msgMenu&&<div ref={msgMenuRef} style={{position:"fixed",top:Math.min(msgMenu.y||300,window.innerHeight-220),left:Math.min(Math.max((msgMenu.x||100)-85,8),window.innerWidth-180),background:T.card,borderRadius:16,padding:6,border:`1px solid ${T.border}`,boxShadow:"0 8px 32px rgba(0,0,0,0.6)",zIndex:500,minWidth:170,animation:"menuIn 0.2s ease"}}>
-{[["↩️ Reply",()=>{setReplyTo({text:msgMenu.msg?.text||"📷 Photo",senderName:msgMenu.msg?.senderName||""});setMsgMenu(null);}],...(msgMenu.msg?.text?[["📋 Copy",()=>copyMsg(msgMenu.msg.text)]]:[]),...(msgMenu.isMine?[["🗑️ Delete for me",()=>deleteMsg(msgMenu.msgId,false)],["🚫 Delete for everyone",()=>deleteMsg(msgMenu.msgId,true)]]:[["🗑️ Delete for me",()=>deleteMsg(msgMenu.msgId,false)]]),["✕ Cancel",()=>setMsgMenu(null)]].map(([label,fn])=>(<div key={label} onClick={fn} style={{padding:"11px 16px",borderRadius:11,cursor:"pointer",fontSize:13,fontWeight:600,color:label.includes("Delete")||label.includes("🚫")?"#EF4444":T.text,transition:"background 0.15s"}} onMouseEnter={e=>e.currentTarget.style.background=T.card2} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>{label}</div>))}
+{[["↩️ Reply",()=>{setReplyTo({text:msgMenu.msg?.text||"📷 Photo",senderName:msgMenu.msg?.senderName||""});setMsgMenu(null);}],
+["😀 React",()=>{showReactionPicker=true; setMsgMenu(null);}],
+...REACTIONS.map(r=>[r,()=>{addReaction(msgMenu.msgId,r);}]).slice(0,3),
+["↗️ Forward",()=>{setForwardModal(msgMenu.msg);setMsgMenu(null);}],
+...(msgMenu.msg?.text?[["📋 Copy",()=>copyMsg(msgMenu.msg.text)]]:[]),
+...(msgMenu.msg?.image?[["💾 Download",()=>downloadMedia(msgMenu.msg.image,"image.jpg")]]:[]),
+["⏰ Schedule",()=>{setShowSchedule(true);setMsgMenu(null);}],
+["📌 Pin",()=>{pinMessage(msgMenu.msgId,msgMenu.msg);}],
+...(pinnedMsgs.some(p=>p.pinnedAt===msgMenu.msg?.timestamp)?[["📌 Unpin",()=>{unpinMessage(msgMenu.msgId);}]]:[]),
+...(msgMenu.isMine?[["🗑️ Delete for me",()=>deleteMsg(msgMenu.msgId,false)],["🚫 Delete for everyone",()=>deleteMsg(msgMenu.msgId,true)]]:[["🗑️ Delete for me",()=>deleteMsg(msgMenu.msgId,false)]]),
+["✕ Cancel",()=>setMsgMenu(null)]].map(([label,fn])=>(<div key={label} onClick={fn} style={{padding:"11px 16px",borderRadius:11,cursor:"pointer",fontSize:13,fontWeight:600,color:label.includes("Delete")||label.includes("🚫")?"#EF4444":T.text,transition:"background 0.15s"}} onMouseEnter={e=>e.currentTarget.style.background=T.card2} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>{label}</div>))}
 </div>}
 
 {replyTo&&<div style={{padding:"9px 14px",background:T.card2,borderBottom:`1px solid ${T.border}`,display:"flex",alignItems:"center",gap:10,animation:"slideDown 0.2s ease",flexShrink:0}}><div style={{flex:1,borderLeft:`3px solid ${T.blue}`,paddingLeft:10}}><div style={{fontSize:11,color:T.blue,fontWeight:700,marginBottom:2}}>{replyTo.senderName}</div><div style={{fontSize:12,color:T.mutedL,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{replyTo.text}</div></div><div onClick={()=>setReplyTo(null)} style={{color:T.muted,cursor:"pointer",fontSize:18,padding:4}}>✕</div></div>}
@@ -546,7 +801,7 @@ return(
 <div style={{position:"relative"}}><div style={{fontSize:30,marginBottom:7}}>👋</div><div style={{fontWeight:800,fontSize:17,color:"#fff",fontFamily:"'Poppins',sans-serif",marginBottom:4}}>Welcome, {user?.displayName?.split(" ")[0]}!</div><div style={{fontSize:12,color:"rgba(255,255,255,0.7)",lineHeight:1.6,marginBottom:14}}>Start connecting on Khan Chats</div><div style={{display:"flex",gap:8}}><Btn onClick={()=>setShowNew(true)} style={{background:"rgba(255,255,255,0.18)",borderRadius:11,padding:"9px 16px",fontSize:12,boxShadow:"none",border:"1px solid rgba(255,255,255,0.2)"}}>✏️ New Chat</Btn><Btn onClick={genInvite} style={{background:"rgba(255,255,255,0.12)",borderRadius:11,padding:"9px 16px",fontSize:12,boxShadow:"none",border:"1px solid rgba(255,255,255,0.15)"}}>🔗 Invite</Btn></div></div>
 </div>
 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
-{[["💬","New Chat","Start messaging",()=>setShowNew(true)],["✨","Updates","Share status",()=>setView("updates")],["📞","Calls","Call history",()=>setView("calls")],["🤖","Khan AI","AI assistant",()=>{setShowSett(true);setSTab("ai");}]].map(([icon,title,desc,fn])=>(<div key={title} onClick={fn} style={{background:T.card,borderRadius:16,padding:15,cursor:"pointer",border:`1px solid ${T.border}`,transition:"all 0.2s",boxShadow:T.cardShadow}} onMouseEnter={e=>e.currentTarget.style.background=T.card2} onMouseLeave={e=>e.currentTarget.style.background=T.card}><div style={{fontSize:22,marginBottom:6}}>{icon}</div><div style={{fontWeight:700,fontSize:13,color:T.text,marginBottom:2}}>{title}</div><div style={{fontSize:11,color:T.muted}}>{desc}</div></div>))}
+{[["💬","New Chat","Start messaging",()=>setShowNew(true)],["✨","Updates","Share status",()=>setView("updates")],["📞","Calls","Call history",()=>setView("calls")],["🤖","Khan AI","AI assistant",()=>{setShowSett(true);setSTab("ai");}],["👥","Groups","Create group",()=>setShowGroupModal(true)],["⏰","Schedule","Later",()=>alert("Schedule messages coming soon")]].map(([icon,title,desc,fn])=>(<div key={title} onClick={fn} style={{background:T.card,borderRadius:16,padding:15,cursor:"pointer",border:`1px solid ${T.border}`,transition:"all 0.2s",boxShadow:T.cardShadow}} onMouseEnter={e=>e.currentTarget.style.background=T.card2} onMouseLeave={e=>e.currentTarget.style.background=T.card}><div style={{fontSize:22,marginBottom:6}}>{icon}</div><div style={{fontWeight:700,fontSize:13,color:T.text,marginBottom:2}}>{title}</div><div style={{fontSize:11,color:T.muted}}>{desc}</div></div>))}
 </div>
 </div>
 ):(
