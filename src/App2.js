@@ -20,7 +20,7 @@ const tAgo=ts=>{const d=Date.now()-ts,m=Math.floor(d/60000);if(m<1)return"Just n
 const fD=s=>{if(!s)return"0:00";return Math.floor(s/60)+":"+(s%60).toString().padStart(2,"0");};
 const dayLbl=ts=>{const d=new Date(ts),t=new Date();if(d.toDateString()===t.toDateString())return"Today";const y=new Date(t);y.setDate(t.getDate()-1);if(d.toDateString()===y.toDateString())return"Yesterday";return d.toLocaleDateString("en-US",{month:"long",day:"numeric"});};
 const isNewDay=(msgs,i)=>{if(i===0)return true;return new Date(msgs[i].timestamp).toDateString()!==new Date(msgs[i-1].timestamp).toDateString();};
-const CSS=GF+"*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;margin:0;padding:0;}::-webkit-scrollbar{width:3px;}::-webkit-scrollbar-thumb{background:#1A2840;border-radius:3px;}input::placeholder,textarea::placeholder{color:#4A5568;}@keyframes fadeIn{from{opacity:0}to{opacity:1}}@keyframes slideUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}@keyframes slideDown{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:translateY(0)}}@keyframes slideR{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:translateX(0)}}@keyframes msgIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}@keyframes dot{0%,80%,100%{transform:scale(0.6);opacity:0.4}40%{transform:scale(1.3);opacity:1}}@keyframes pulse{0%,100%{box-shadow:0 0 40px rgba(79,142,247,0.5)}50%{box-shadow:0 0 70px rgba(79,142,247,0.8)}}@keyframes ring{0%,100%{transform:scale(1);opacity:0.3}50%{transform:scale(1.15);opacity:0}}@keyframes badgePop{0%{transform:scale(0)}60%{transform:scale(1.2)}100%{transform:scale(1)}}@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}";
+const CSS=GF+"*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;margin:0;padding:0;}::-webkit-scrollbar{width:3px;}::-webkit-scrollbar-thumb{background:#1A2840;border-radius:3px;}input::placeholder,textarea::placeholder{color:#4A5568;}@keyframes fadeIn{from{opacity:0}to{opacity:1}}@keyframes slideUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}@keyframes slideDown{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:translateY(0)}}@keyframes slideR{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:translateX(0)}}@keyframes slideL{from{opacity:0;transform:translateX(-20px)}to{opacity:1;transform:translateX(0)}}@keyframes msgIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}@keyframes dot{0%,80%,100%{transform:scale(0.6);opacity:0.4}40%{transform:scale(1.3);opacity:1}}@keyframes pulse{0%,100%{box-shadow:0 0 40px rgba(79,142,247,0.5)}50%{box-shadow:0 0 70px rgba(79,142,247,0.8)}}@keyframes ring{0%,100%{transform:scale(1);opacity:0.3}50%{transform:scale(1.15);opacity:0}}@keyframes badgePop{0%{transform:scale(0)}60%{transform:scale(1.2)}100%{transform:scale(1)}}@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}";
 
 export default function App(){
 const[user,setUser]=useState(null);
@@ -55,6 +55,9 @@ const[logoutC,setLogoutC]=useState(false);const[deleteC,setDeleteC]=useState(fal
 const[showEmoji,setShowEmoji]=useState(false);
 const[isRec,setIsRec]=useState(false);const[recTime,setRecTime]=useState(0);
 const[recentAct,setRecentAct]=useState([]);const[chatBg,setChatBg]=useState("dots");
+const[contactProfile,setContactProfile]=useState(null);
+const[contactBio,setContactBio]=useState("");const[contactUname,setContactUname]=useState("");
+const[contactPic,setContactPic]=useState(null);
 
 const endRef=useRef(null);const fileRef=useRef(null);const sFRef=useRef(null);const picRef=useRef(null);
 const lvRef=useRef(null);const rvRef=useRef(null);const pcRef=useRef(null);const lsRef=useRef(null);
@@ -96,6 +99,19 @@ const loadAll=u=>{
   onValue(ref(db,"lockedChats/"+u.uid),snap=>{setLocks(snap.val()||{});});
   onValue(ref(db,"userBio/"+u.uid),snap=>{if(snap.val())setBio(snap.val());});
   onValue(ref(db,"usernames/"+u.uid),snap=>{if(snap.val())setUname(snap.val());});
+};
+
+const loadContactProfile=async(contact)=>{
+  setContactProfile(contact);
+  setContactBio("");setContactUname("");setContactPic(null);
+  try{
+    const bioSnap=await get(ref(db,"userBio/"+contact.uid));
+    if(bioSnap.val())setContactBio(bioSnap.val());
+    const unameSnap=await get(ref(db,"usernames/"+contact.uid));
+    if(unameSnap.val())setContactUname(unameSnap.val());
+    const picSnap=await get(ref(db,"profilePics/"+contact.uid));
+    if(picSnap.val())setContactPic(picSnap.val());
+  }catch(e){}
 };
 
 const saveCall=(u,d)=>push(ref(db,"callHistory/"+u.uid),{...d,timestamp:Date.now()});
@@ -272,7 +288,7 @@ if(loading)return(
 <div style={{position:"absolute",inset:-18,borderRadius:48,border:"1px solid rgba(139,92,246,0.15)",animation:"ring 2s 0.4s infinite"}} />
 </div>
 <div style={{textAlign:"center"}}>
-<div style={{fontSize:30,fontWeight:900,background:T.grad,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",letterSpacing:"-0.5px"}}>Khan Chats</div>
+<div style={{fontSize:30,fontWeight:900,background:T.grad,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>Khan Chats</div>
 <div style={{color:T.muted,fontSize:13,marginTop:6}}>Premium Messaging</div>
 </div>
 <div style={{display:"flex",gap:10}}>{[0,1,2].map(i=><div key={i} style={{width:9,height:9,borderRadius:"50%",background:T.grad,animation:"dot 1.4s "+(i*0.2)+"s infinite"}} />)}</div>
@@ -300,17 +316,80 @@ if(screen==="login"||screen==="register")return(
 </div>
 {aErr&&<div style={{color:"#EF4444",fontSize:13,margin:"12px 0",padding:"10px 14px",background:"rgba(239,68,68,0.08)",borderRadius:12,border:"1px solid rgba(239,68,68,0.2)"}}>{aErr}</div>}
 <Btn onClick={screen==="login"?login:register} style={{marginTop:16,fontSize:15,padding:"15px",borderRadius:18,boxShadow:T.shadowL}}>{aLoad?"Please wait...":(screen==="login"?"Sign In →":"Create Account →")}</Btn>
-<p style={{color:T.muted,fontSize:11,textAlign:"center",marginTop:22,lineHeight:1.8}}>
-Independent Messaging · Not affiliated with WhatsApp or Meta<br/>
-<span onClick={()=>setPolicy("privacy")} style={{color:T.blue,cursor:"pointer"}}>Privacy Policy</span>{" · "}
-<span onClick={()=>setPolicy("terms")} style={{color:T.blue,cursor:"pointer"}}>Terms</span>
-</p>
+<p style={{color:T.muted,fontSize:11,textAlign:"center",marginTop:22,lineHeight:1.8}}>Independent Messaging · Not affiliated with WhatsApp or Meta<br/><span onClick={()=>setPolicy("privacy")} style={{color:T.blue,cursor:"pointer"}}>Privacy Policy</span>{" · "}<span onClick={()=>setPolicy("terms")} style={{color:T.blue,cursor:"pointer"}}>Terms</span></p>
 </div>
-{policy&&<Modal onClose={()=>setPolicy(null)}><Card style={{padding:28,maxHeight:"78vh",overflowY:"auto"}}>
-<div style={{fontWeight:800,fontSize:18,color:T.text,marginBottom:14}}>{policy==="privacy"?"🔒 Privacy Policy":"📋 Terms"}</div>
-<div style={{color:T.mutedL,fontSize:13,lineHeight:1.9}}>{policy==="privacy"?<><p>Khan Chats is independent and committed to your privacy.</p><p><strong style={{color:T.text}}>Data:</strong> Email, name, photo, messages.</p><p><strong style={{color:T.text}}>Security:</strong> Firebase.</p><p><strong style={{color:T.text}}>Rights:</strong> Delete anytime.</p></>:<><p>By using Khan Chats you agree.</p><p><strong style={{color:T.text}}>Use:</strong> Lawful only.</p><p>Not affiliated with WhatsApp or Meta.</p></>}</div>
-<Btn onClick={()=>setPolicy(null)} style={{marginTop:18}}>Close</Btn>
-</Card></Modal>}
+{policy&&<Modal onClose={()=>setPolicy(null)}><Card style={{padding:28,maxHeight:"78vh",overflowY:"auto"}}><div style={{fontWeight:800,fontSize:18,color:T.text,marginBottom:14}}>{policy==="privacy"?"🔒 Privacy Policy":"📋 Terms"}</div><div style={{color:T.mutedL,fontSize:13,lineHeight:1.9}}>{policy==="privacy"?<><p>Khan Chats is independent and committed to your privacy.</p><p><strong style={{color:T.text}}>Data:</strong> Email, name, photo, messages.</p><p><strong style={{color:T.text}}>Security:</strong> Firebase.</p></>:<><p>By using Khan Chats you agree.</p><p><strong style={{color:T.text}}>Use:</strong> Lawful only.</p><p>Not affiliated with WhatsApp or Meta.</p></>}</div><Btn onClick={()=>setPolicy(null)} style={{marginTop:18}}>Close</Btn></Card></Modal>}
+</div>
+);
+
+// CONTACT PROFILE PAGE
+if(contactProfile)return(
+<div style={{position:"fixed",inset:0,background:T.bg,zIndex:9998,display:"flex",flexDirection:"column",fontFamily:"'Inter',sans-serif",color:T.text,animation:"slideL 0.3s ease"}}>
+<style>{CSS}</style>
+<div style={{display:"flex",alignItems:"center",padding:"15px 18px",background:T.card,gap:12,borderBottom:"1px solid "+T.border,boxShadow:"0 2px 12px rgba(0,0,0,0.3)"}}>
+<div onClick={()=>setContactProfile(null)} style={{width:38,height:38,borderRadius:12,background:T.card2,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:17,border:"1px solid "+T.border,flexShrink:0}}>←</div>
+<div style={{fontWeight:800,fontSize:19,fontFamily:"'Poppins',sans-serif"}}>Contact Info</div>
+</div>
+<div style={{flex:1,overflowY:"auto"}}>
+<div style={{background:T.grad,padding:"40px 20px 30px",textAlign:"center",position:"relative",overflow:"hidden"}}>
+<div style={{position:"absolute",top:-30,left:-30,width:150,height:150,borderRadius:"50%",background:"rgba(255,255,255,0.04)"}} />
+<div style={{position:"absolute",bottom:-20,right:-20,width:100,height:100,borderRadius:"50%",background:"rgba(255,255,255,0.04)"}} />
+<div style={{position:"relative"}}>
+{contactPic
+?<img src={contactPic} alt="p" style={{width:110,height:110,borderRadius:"50%",objectFit:"cover",border:"4px solid rgba(255,255,255,0.4)",margin:"0 auto",display:"block",boxShadow:"0 8px 32px rgba(0,0,0,0.3)"}} />
+:<div style={{width:110,height:110,borderRadius:"50%",background:"rgba(255,255,255,0.15)",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,fontSize:40,color:"#fff",border:"4px solid rgba(255,255,255,0.3)",margin:"0 auto",backdropFilter:"blur(10px)"}}>{gi(contactProfile.name)}</div>}
+<div style={{color:"#fff",fontWeight:900,fontSize:26,marginTop:16,fontFamily:"'Poppins',sans-serif",letterSpacing:"-0.5px"}}>{contactProfile.name}</div>
+{contactUname&&<div style={{color:"rgba(255,255,255,0.6)",fontSize:14,marginTop:4}}>{"@"+contactUname}</div>}
+<div style={{color:"rgba(255,255,255,0.5)",fontSize:12,marginTop:4}}>{contactProfile.email}</div>
+</div>
+</div>
+
+<div style={{padding:18,display:"flex",gap:12,justifyContent:"center"}}>
+{[["💬","Message",()=>{setContactProfile(null);openChat(contactProfile);}],["📞","Audio",()=>{setContactProfile(null);openChat(contactProfile);setTimeout(()=>startCall("audio"),500);}],["📹","Video",()=>{setContactProfile(null);openChat(contactProfile);setTimeout(()=>startCall("video"),500);}]].map(([icon,label,fn])=>(
+<div key={label} onClick={fn} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:8,padding:"16px 8px",background:T.card,borderRadius:18,cursor:"pointer",border:"1px solid "+T.border,transition:"all 0.2s"}} onMouseEnter={e=>e.currentTarget.style.background=T.card2} onMouseLeave={e=>e.currentTarget.style.background=T.card}>
+<div style={{width:46,height:46,borderRadius:15,background:T.grad,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,boxShadow:T.shadow}}>{icon}</div>
+<span style={{fontSize:12,fontWeight:700,color:T.text}}>{label}</span>
+</div>
+))}
+</div>
+
+{contactBio&&<div style={{margin:"0 18px 14px",background:T.card,borderRadius:18,padding:"18px 20px",border:"1px solid "+T.border}}>
+<div style={{fontSize:10,color:T.blue,fontWeight:700,marginBottom:8,textTransform:"uppercase",letterSpacing:1.5}}>About</div>
+<div style={{fontSize:14,color:T.text,lineHeight:1.7}}>{contactBio}</div>
+</div>}
+
+<div style={{margin:"0 18px 14px",background:T.card,borderRadius:18,border:"1px solid "+T.border,overflow:"hidden"}}>
+<div style={{padding:"18px 20px",borderBottom:"1px solid "+T.border}}>
+<div style={{fontSize:10,color:T.blue,fontWeight:700,marginBottom:12,textTransform:"uppercase",letterSpacing:1.5}}>Contact Details</div>
+{[["📧","Email",contactProfile.email],["👤","Name",contactProfile.name],...(contactUname?[["🔖","Username","@"+contactUname]]:[])].map(([icon,label,val])=>(
+<div key={label} style={{display:"flex",alignItems:"center",gap:12,marginBottom:12}}>
+<div style={{width:36,height:36,borderRadius:11,background:T.card2,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>{icon}</div>
+<div style={{flex:1}}><div style={{fontSize:11,color:T.muted,fontWeight:600,marginBottom:2}}>{label}</div><div style={{fontSize:14,color:T.text}}>{val}</div></div>
+</div>
+))}
+</div>
+</div>
+
+<div style={{margin:"0 18px 14px",background:T.card,borderRadius:18,border:"1px solid "+T.border,overflow:"hidden"}}>
+<div style={{padding:"18px 20px"}}>
+<div style={{fontSize:10,color:T.blue,fontWeight:700,marginBottom:14,textTransform:"uppercase",letterSpacing:1.5}}>Actions</div>
+{[
+["📌",pins.includes(contactProfile.chatId)?"Unpin Contact":"Pin Contact",()=>{togglePin(contactProfile.chatId);}],
+[locks[contactProfile.chatId]?"🔓":"🔒",locks[contactProfile.chatId]?"Remove Chat Lock":"Lock Chat",()=>{if(locks[contactProfile.chatId]){if(window.confirm("Remove lock?"))removeLock(contactProfile.chatId);}else{setLModal(contactProfile.chatId);setLPin("");setLErr("");setContactProfile(null);}}]
+].map(([icon,label,fn])=>(
+<div key={label} onClick={fn} style={{display:"flex",alignItems:"center",gap:12,padding:"13px 14px",background:T.card2,borderRadius:13,marginBottom:8,cursor:"pointer",border:"1px solid "+T.border,transition:"all 0.2s"}} onMouseEnter={e=>e.currentTarget.style.background=T.card3} onMouseLeave={e=>e.currentTarget.style.background=T.card2}>
+<div style={{width:36,height:36,borderRadius:11,background:T.grad,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>{icon}</div>
+<div style={{fontWeight:600,fontSize:14,color:T.text}}>{label}</div>
+</div>
+))}
+</div>
+</div>
+
+<div style={{margin:"0 18px 30px",padding:"14px 18px",background:"rgba(239,68,68,0.06)",borderRadius:18,border:"1px solid rgba(239,68,68,0.15)",cursor:"pointer",display:"flex",alignItems:"center",gap:12}} onClick={()=>{if(window.confirm("Block this contact?"))alert("Block feature coming soon!");}}>
+<div style={{width:36,height:36,borderRadius:11,background:"rgba(239,68,68,0.1)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>🚫</div>
+<div style={{fontWeight:600,fontSize:14,color:"#EF4444"}}>Block Contact</div>
+</div>
+</div>
 </div>
 );
 
@@ -348,16 +427,6 @@ if(showSett)return(
 </div>
 ))}
 <Btn onClick={saveProfile} style={{marginTop:6}}>Save Changes ✓</Btn>
-</Card>
-<Card style={{padding:18,marginBottom:14}}>
-<div style={{fontSize:10,color:T.blue,fontWeight:700,marginBottom:12,textTransform:"uppercase",letterSpacing:1.5}}>Chat Locks</div>
-{Object.entries(contacts).length===0?<div style={{color:T.muted,fontSize:13,textAlign:"center",padding:14}}>No contacts yet</div>:Object.entries(contacts).map(([chatId,c])=>(
-<div key={chatId} style={{display:"flex",alignItems:"center",padding:"10px 12px",background:T.card2,borderRadius:13,marginBottom:8,gap:11,border:"1px solid "+T.border}}>
-<Av name={c.name} size={38} />
-<div style={{flex:1}}><div style={{fontWeight:700,fontSize:13,color:T.text}}>{c.name}</div><div style={{fontSize:11,color:locks[chatId]?"#EF4444":T.muted,fontWeight:600}}>{locks[chatId]?"🔒 Locked":"🔓 Unlocked"}</div></div>
-{locks[chatId]?<div onClick={()=>{if(window.confirm("Remove lock?"))removeLock(chatId);}} style={{padding:"6px 12px",background:"rgba(239,68,68,0.1)",borderRadius:10,color:"#EF4444",fontSize:12,fontWeight:700,cursor:"pointer"}}>Remove</div>:<div onClick={()=>{setLModal(chatId);setLPin("");setLErr("");}} style={{padding:"6px 14px",background:T.grad,borderRadius:10,color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer"}}>🔒 Lock</div>}
-</div>
-))}
 </Card>
 <Btn onClick={()=>setLogoutC(true)} v="d" style={{marginBottom:10}}>🚪 Sign Out</Btn>
 <div onClick={()=>setDeleteC(true)} style={{padding:"12px",background:"transparent",borderRadius:14,textAlign:"center",color:"#EF4444",fontWeight:600,cursor:"pointer",border:"1px solid rgba(239,68,68,0.3)",fontSize:13}}>🗑️ Delete Account</div>
@@ -456,7 +525,7 @@ if(showSett)return(
 
 {sTab==="legal"&&<div style={{animation:"slideUp 0.3s ease"}}>
 {[["🔒 Privacy Policy","privacy"],["📋 Terms","terms"],["📧 Contact","contact"],["❓ Help","help"],["🗑️ Delete Account","delete"]].map(([title,action])=>(
-<Card key={action} style={{padding:"15px 18px",marginBottom:10,cursor:"pointer"}} onClick={()=>{if(action==="delete")setDeleteC(true);else if(action==="contact")alert("📧 khanchats.support@gmail.com");else if(action==="help")alert("FAQ:\n• Chat lock: Settings → Profile\n• Invite: Tap 🔗\n• AI: Settings → Khan AI");else setPolicy(action);}}>
+<Card key={action} style={{padding:"15px 18px",marginBottom:10,cursor:"pointer"}} onClick={()=>{if(action==="delete")setDeleteC(true);else if(action==="contact")alert("📧 khanchats.support@gmail.com");else if(action==="help")alert("FAQ:\n• Chat lock: Settings → Profile\n• Invite: Tap 🔗\n• AI: Settings → Khan AI\n• Contact profile: Long press contact");else setPolicy(action);}}>
 <div style={{display:"flex",alignItems:"center",gap:12}}><div style={{flex:1}}><div style={{fontWeight:700,fontSize:13,color:T.text}}>{title}</div></div><span style={{color:T.muted,fontSize:18}}>›</span></div>
 </Card>
 ))}
@@ -474,9 +543,7 @@ if(showSett)return(
 );
 
 if(lModal)return(<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.92)",zIndex:10001,display:"flex",alignItems:"center",justifyContent:"center",padding:20,fontFamily:"'Poppins',sans-serif"}}><style>{CSS}</style><Card style={{padding:34,maxWidth:360,width:"100%",textAlign:"center",animation:"slideUp 0.3s ease"}}><div style={{width:72,height:72,borderRadius:22,background:T.grad,display:"flex",alignItems:"center",justifyContent:"center",fontSize:32,margin:"0 auto 16px",boxShadow:T.shadow}}>🔒</div><h3 style={{color:T.text,fontWeight:800,fontSize:20,marginBottom:6}}>Set Chat PIN</h3><p style={{color:T.muted,fontSize:13,marginBottom:20}}>Min 4 digits</p><Inp value={lPin} onChange={e=>setLPin(e.target.value.replace(/\D/g,""))} placeholder="• • • •" type="password" style={{fontSize:24,textAlign:"center",letterSpacing:12,marginBottom:8}} />{lErr&&<div style={{color:"#EF4444",fontSize:13,marginBottom:10,padding:"7px",background:"rgba(239,68,68,0.08)",borderRadius:9}}>{lErr}</div>}<div style={{display:"flex",gap:10,marginTop:10}}><Btn onClick={()=>{setLModal(null);setLPin("");setLErr("");}} v="g" style={{flex:1}}>Cancel</Btn><Btn onClick={()=>lockChat(lModal)} style={{flex:1}}>Lock 🔒</Btn></div></Card></div>);
-
 if(ulModal)return(<div style={{position:"fixed",inset:0,background:T.bg,zIndex:10001,display:"flex",alignItems:"center",justifyContent:"center",padding:20,fontFamily:"'Poppins',sans-serif"}}><style>{CSS}</style><Card style={{padding:34,maxWidth:360,width:"100%",textAlign:"center",animation:"slideUp 0.3s ease"}}><div style={{width:72,height:72,borderRadius:22,background:T.grad,display:"flex",alignItems:"center",justifyContent:"center",fontSize:32,margin:"0 auto 16px",boxShadow:T.shadow}}>🔐</div><h3 style={{color:T.text,fontWeight:800,fontSize:20,marginBottom:6}}>Chat Locked</h3><p style={{color:T.muted,fontSize:13,marginBottom:20}}>Enter PIN to unlock</p><Inp value={ulPin} onChange={e=>setUlPin(e.target.value.replace(/\D/g,""))} placeholder="• • • •" type="password" style={{fontSize:24,textAlign:"center",letterSpacing:12,marginBottom:8}} onKeyDown={e=>e.key==="Enter"&&unlockChat(ulModal)} />{lErr&&<div style={{color:"#EF4444",fontSize:13,marginBottom:10,padding:"7px",background:"rgba(239,68,68,0.08)",borderRadius:9}}>{lErr}</div>}<div style={{display:"flex",gap:10,marginTop:10}}><Btn onClick={()=>{setUlModal(null);setUlPin("");setLErr("");}} v="g" style={{flex:1}}>Cancel</Btn><Btn onClick={()=>unlockChat(ulModal)} style={{flex:1}}>Unlock →</Btn></div></Card></div>);
-
 if(inCall)return(<div style={{position:"fixed",inset:0,background:T.bg,zIndex:9997,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:26,fontFamily:"'Poppins',sans-serif"}}><style>{CSS}</style><div style={{width:96,height:96,borderRadius:30,background:T.grad,display:"flex",alignItems:"center",justifyContent:"center",fontSize:44,boxShadow:"0 0 60px rgba(79,142,247,0.5)",animation:"pulse 2s infinite"}}>{callType==="video"?"📹":"📞"}</div><div style={{textAlign:"center"}}><div style={{color:T.text,fontSize:24,fontWeight:800}}>{activeChat?.name}</div><div style={{color:T.muted,fontSize:13,marginTop:6}}>{callType==="video"?"Video":"Audio"} call...</div></div>{callType==="video"&&<div style={{display:"flex",gap:14}}><video ref={lvRef} autoPlay muted style={{width:150,height:114,borderRadius:17,background:T.card,border:"2px solid "+T.blue,objectFit:"cover"}} /><video ref={rvRef} autoPlay style={{width:150,height:114,borderRadius:17,background:T.card,border:"2px solid "+T.purple,objectFit:"cover"}} /></div>}<Btn onClick={endCall} v="d" style={{padding:"15px 46px",borderRadius:22,fontSize:15,boxShadow:"0 8px 30px rgba(239,68,68,0.4)"}}>End Call</Btn></div>);
 
 return(
@@ -493,25 +560,25 @@ return(
 </div>
 
 {previewImg&&<div onClick={()=>setPreviewImg(null)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.97)",zIndex:9998,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:14,animation:"fadeIn 0.2s ease"}}><img src={previewImg} alt="p" style={{maxWidth:"95vw",maxHeight:"82vh",borderRadius:18}} /><div style={{display:"flex",gap:12}}><a href={previewImg} download style={{padding:"10px 22px",background:T.grad,borderRadius:14,color:"#fff",fontWeight:700,fontSize:13,textDecoration:"none",boxShadow:T.shadow}}>⬇ Download</a><div onClick={()=>setPreviewImg(null)} style={{padding:"10px 22px",background:T.card,borderRadius:14,color:T.text,fontWeight:700,fontSize:13,cursor:"pointer",border:"1px solid "+T.border}}>Close ✕</div></div></div>}
-
 {viewS&&<div onClick={()=>setViewS(null)} style={{position:"fixed",inset:0,background:"#000",zIndex:10000,display:"flex",flexDirection:"column",animation:"fadeIn 0.2s ease"}}><div style={{padding:"18px 20px",display:"flex",alignItems:"center",gap:13,background:"rgba(0,0,0,0.7)"}}><Av name={viewS.name} size={44} /><div><div style={{fontWeight:700,color:"#fff",fontSize:15}}>{viewS.name}</div><div style={{fontSize:11,color:"rgba(255,255,255,0.5)",marginTop:2}}>{tAgo(viewS.timestamp)}</div></div><span style={{marginLeft:"auto",fontSize:22,color:"rgba(255,255,255,0.6)",cursor:"pointer"}}>✕</span></div><div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",padding:22}}>{viewS.image&&<img src={viewS.image} alt="s" style={{maxWidth:"100%",maxHeight:"70vh",borderRadius:18}} />}{viewS.text&&<p style={{color:"#fff",fontSize:22,textAlign:"center",lineHeight:1.6,fontWeight:600,maxWidth:380}}>{viewS.text}</p>}</div></div>}
-
 {showInvite&&<Modal onClose={()=>setShowInvite(false)}><Card style={{padding:30,textAlign:"center"}}><div style={{width:66,height:66,borderRadius:20,background:T.grad,display:"flex",alignItems:"center",justifyContent:"center",fontSize:28,margin:"0 auto 14px",boxShadow:T.shadow}}>🔗</div><h3 style={{color:T.text,fontWeight:800,fontSize:19,marginBottom:8,fontFamily:"'Poppins',sans-serif"}}>Invite Friends</h3><div style={{background:T.card2,borderRadius:12,padding:"11px 14px",fontSize:11,color:T.blue,wordBreak:"break-all",marginBottom:18,border:"1px solid "+T.border,lineHeight:1.6}}>{invL}</div><Btn onClick={copyLink} style={{marginBottom:10}}>{copied?"✅ Copied!":"📋 Copy Link"}</Btn><div onClick={()=>setShowInvite(false)} style={{padding:"10px",color:T.muted,cursor:"pointer",fontSize:13}}>Close</div></Card></Modal>}
-
 {policy&&<Modal onClose={()=>setPolicy(null)}><Card style={{padding:26,maxHeight:"75vh",overflowY:"auto"}}><div style={{fontWeight:800,fontSize:17,color:T.text,marginBottom:12}}>{policy==="privacy"?"🔒 Privacy":"📋 Terms"}</div><div style={{color:T.mutedL,fontSize:13,lineHeight:1.9}}>{policy==="privacy"?<><p>Independent platform.</p><p><strong style={{color:T.text}}>Data:</strong> Email, name, photo, messages.</p></>:<><p>Lawful use only.</p><p>Not affiliated with WhatsApp or Meta.</p></>}</div><Btn onClick={()=>setPolicy(null)} style={{marginTop:16}}>Close</Btn></Card></Modal>}
 
 {nav==="chat"&&activeChat?(
 <div style={{display:"flex",flexDirection:"column",height:"100%",background:T.bg}}>
 <div style={{display:"flex",alignItems:"center",padding:"12px 14px",background:T.card,gap:11,borderBottom:"1px solid "+T.border,boxShadow:"0 2px 14px rgba(0,0,0,0.3)",flexShrink:0,zIndex:10}}>
 <div onClick={()=>{setNav("home");setShowEmoji(false);setMsgMenu(null);setReplyTo(null);}} style={{width:36,height:36,borderRadius:11,background:T.card2,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:16,border:"1px solid "+T.border,flexShrink:0}}>←</div>
-<div style={{width:42,height:42,borderRadius:14,background:cfn(activeChat.name),display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:16,color:"#fff",flexShrink:0,boxShadow:T.shadow}}>{gi(activeChat.name)}</div>
-<div style={{flex:1,overflow:"hidden"}}>
+<div onClick={()=>loadContactProfile(activeChat)} style={{width:42,height:42,borderRadius:14,background:cfn(activeChat.name),display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:16,color:"#fff",flexShrink:0,boxShadow:T.shadow,cursor:"pointer"}}>
+{contactPic&&activeChat?<img src={contactPic} alt="p" style={{width:42,height:42,borderRadius:14,objectFit:"cover"}} />:gi(activeChat.name)}
+</div>
+<div style={{flex:1,overflow:"hidden",cursor:"pointer"}} onClick={()=>loadContactProfile(activeChat)}>
 <div style={{fontWeight:800,fontSize:15,color:T.text,fontFamily:"'Poppins',sans-serif",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{activeChat.name}</div>
 <div style={{fontSize:10,fontWeight:600,marginTop:1,color:isTyping?"#A78BFA":T.blue}}>{isTyping?"✍️ typing...":"● Online"}</div>
 </div>
 <div style={{display:"flex",gap:6,flexShrink:0}}>
 <div onClick={()=>startCall("audio")} style={{width:36,height:36,borderRadius:11,background:T.card2,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:16,border:"1px solid "+T.border}}>📞</div>
 <div onClick={()=>startCall("video")} style={{width:36,height:36,borderRadius:11,background:T.card2,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:16,border:"1px solid "+T.border}}>📹</div>
+<div onClick={()=>loadContactProfile(activeChat)} style={{width:36,height:36,borderRadius:11,background:T.card2,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:16,border:"1px solid "+T.border}}>ℹ️</div>
 </div>
 </div>
 
@@ -646,10 +713,16 @@ return(
 </div>
 </div>}
 {filtC.map(([chatId,contact],idx)=>(
-<div key={chatId} onClick={()=>handleChatClick(contact)} style={{display:"flex",alignItems:"center",padding:"12px 16px",cursor:"pointer",gap:12,background:activeChat?.chatId===chatId?T.card2:"transparent",borderBottom:"1px solid "+T.border,transition:"all 0.15s ease",animation:"slideUp 0.3s "+(Math.min(idx*0.04,0.3))+"s ease both"}} onMouseEnter={e=>e.currentTarget.style.background=T.card} onMouseLeave={e=>e.currentTarget.style.background=activeChat?.chatId===chatId?T.card2:"transparent"}>
-<div style={{position:"relative",flexShrink:0}}><div style={{width:50,height:50,borderRadius:17,background:cfn(contact.name),display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:17,color:"#fff"}}>{gi(contact.name)}</div>{pins.includes(chatId)&&<div style={{position:"absolute",top:-5,right:-5,fontSize:9,background:T.bg,borderRadius:"50%",width:16,height:16,display:"flex",alignItems:"center",justifyContent:"center"}}>📌</div>}</div>
-<div style={{flex:1,overflow:"hidden"}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:3}}><span style={{fontWeight:700,fontSize:14,color:T.text}}>{contact.name}</span><span style={{fontSize:10,color:(unread[chatId]||0)>0?T.blue:T.muted,fontWeight:500,flexShrink:0}}>{tAgo(contact.lastTime)}</span></div><div style={{fontSize:12,color:T.muted,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{contact.lastMsg||contact.email}</div></div>
-{(unread[chatId]||0)>0&&<div style={{minWidth:19,height:19,background:T.grad,borderRadius:10,display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:800,color:"#fff",flexShrink:0,padding:"0 4px",boxShadow:T.shadow,animation:"badgePop 0.3s ease"}}>{(unread[chatId]||0)>9?"9+":unread[chatId]}</div>}
+<div key={chatId} style={{display:"flex",alignItems:"center",padding:"12px 16px",cursor:"pointer",gap:12,background:activeChat?.chatId===chatId?T.card2:"transparent",borderBottom:"1px solid "+T.border,transition:"all 0.15s ease",animation:"slideUp 0.3s "+(Math.min(idx*0.04,0.3))+"s ease both"}} onMouseEnter={e=>e.currentTarget.style.background=T.card} onMouseLeave={e=>e.currentTarget.style.background=activeChat?.chatId===chatId?T.card2:"transparent"}>
+<div style={{position:"relative",flexShrink:0}} onClick={()=>loadContactProfile(contact)}>
+<div style={{width:50,height:50,borderRadius:17,background:cfn(contact.name),display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:17,color:"#fff"}}>{gi(contact.name)}</div>
+{pins.includes(chatId)&&<div style={{position:"absolute",top:-5,right:-5,fontSize:9,background:T.bg,borderRadius:"50%",width:16,height:16,display:"flex",alignItems:"center",justifyContent:"center"}}>📌</div>}
+</div>
+<div style={{flex:1,overflow:"hidden"}} onClick={()=>handleChatClick(contact)}>
+<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:3}}><span style={{fontWeight:700,fontSize:14,color:T.text}}>{contact.name}</span><span style={{fontSize:10,color:(unread[chatId]||0)>0?T.blue:T.muted,fontWeight:500,flexShrink:0}}>{tAgo(contact.lastTime)}</span></div>
+<div style={{fontSize:12,color:T.muted,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{contact.lastMsg||contact.email}</div>
+</div>
+{(unread[chatId]||0)>0&&<div onClick={()=>handleChatClick(contact)} style={{minWidth:19,height:19,background:T.grad,borderRadius:10,display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:800,color:"#fff",flexShrink:0,padding:"0 4px",boxShadow:T.shadow,animation:"badgePop 0.3s ease"}}>{(unread[chatId]||0)>9?"9+":unread[chatId]}</div>}
 </div>
 ))}
 {lkC.length>0&&<div>
