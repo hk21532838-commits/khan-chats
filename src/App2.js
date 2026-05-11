@@ -1,7 +1,7 @@
 import{useState,useEffect,useRef}from"react";
 import{initializeApp}from"firebase/app";
 import{getAuth,createUserWithEmailAndPassword,signInWithEmailAndPassword,signOut,onAuthStateChanged,updateProfile}from"firebase/auth";
-import{getDatabase,ref,push,onValue,set,get,serverTimestamp,off,remove}from"firebase/database";
+import{getDatabase,ref,push,onValue,set,get,serverTimestamp,off}from"firebase/database";
 
 const FC={apiKey:"AIzaSyDJt8Pf6bC938Q9Ufxwj6xSREV0xcQf6_I",authDomain:"khan-chats-d9607.firebaseapp.com",projectId:"khan-chats-d9607",storageBucket:"khan-chats-d9607.firebasestorage.app",messagingSenderId:"646302896729",appId:"1:646302896729:web:41b2d05775c704ad43d748",databaseURL:"https://khan-chats-d9607-default-rtdb.firebaseio.com"};
 const fbApp=initializeApp(FC);
@@ -11,6 +11,7 @@ const GKEY="AIzaSyBD7nr5CaWz4VNW0MaZQdliPb4YKKdYmrg";
 const T={bg:"#080E1A",card:"#0F1923",card2:"#162030",card3:"#1C2940",blue:"#4F8EF7",purple:"#8B5CF6",text:"#F0F4FF",muted:"#4A5568",mutedL:"#718096",border:"#1A2840",grad:"linear-gradient(135deg,#4F8EF7,#8B5CF6)",gradS:"linear-gradient(135deg,#1E3A8A,#5B21B6)",gradD:"linear-gradient(135deg,#EF4444,#DC2626)",gradG:"linear-gradient(135deg,#10B981,#059669)",shadow:"0 4px 20px rgba(79,142,247,0.2)",shadowL:"0 8px 40px rgba(79,142,247,0.3)"};
 const GF="@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Poppins:wght@600;700;800;900&display=swap');";
 const EMOJIS=["😀","😂","❤️","👍","🔥","😍","🎉","👏","😎","🙌","💯","✨","🥰","😘","🤩","💪","🙏","😅","🤔","👋","🎯","⭐","🌟","🚀","💬","😊","🤝","😭","🤣","😱"];
+const REACT_EMOJIS=["❤️","👍","😂","😮","😢","🔥","👏","🎉"];
 const LANGS=["English","Urdu","Arabic","Hindi","Spanish","French","German","Chinese","Japanese","Korean","Portuguese","Russian","Turkish","Italian","Dutch","Polish","Swedish","Danish","Finnish","Greek","Hebrew","Persian","Bengali","Punjabi"];
 const DISAPPEAR_OPTS=[{label:"Off",val:0},{label:"1 Hour",val:3600},{label:"24 Hours",val:86400},{label:"7 Days",val:604800}];
 const ft=ts=>{if(!ts)return"";return new Date(ts).toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit"});};
@@ -21,7 +22,7 @@ const tAgo=ts=>{const d=Date.now()-ts,m=Math.floor(d/60000);if(m<1)return"Just n
 const fD=s=>{if(!s)return"0:00";return Math.floor(s/60)+":"+(s%60).toString().padStart(2,"0");};
 const dayLbl=ts=>{const d=new Date(ts),t=new Date();if(d.toDateString()===t.toDateString())return"Today";const y=new Date(t);y.setDate(t.getDate()-1);if(d.toDateString()===y.toDateString())return"Yesterday";return d.toLocaleDateString("en-US",{month:"long",day:"numeric"});};
 const isNewDay=(msgs,i)=>{if(i===0)return true;return new Date(msgs[i].timestamp).toDateString()!==new Date(msgs[i-1].timestamp).toDateString();};
-const CSS=GF+"*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;margin:0;padding:0;}::-webkit-scrollbar{width:3px;}::-webkit-scrollbar-thumb{background:#1A2840;border-radius:3px;}input::placeholder,textarea::placeholder{color:#4A5568;}@keyframes fadeIn{from{opacity:0}to{opacity:1}}@keyframes slideUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}@keyframes slideDown{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:translateY(0)}}@keyframes slideR{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:translateX(0)}}@keyframes slideL{from{opacity:0;transform:translateX(-20px)}to{opacity:1;transform:translateX(0)}}@keyframes msgIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}@keyframes dot{0%,80%,100%{transform:scale(0.6);opacity:0.4}40%{transform:scale(1.3);opacity:1}}@keyframes pulse{0%,100%{box-shadow:0 0 40px rgba(79,142,247,0.5)}50%{box-shadow:0 0 70px rgba(79,142,247,0.8)}}@keyframes ring{0%,100%{transform:scale(1);opacity:0.3}50%{transform:scale(1.15);opacity:0}}@keyframes badgePop{0%{transform:scale(0)}60%{transform:scale(1.2)}100%{transform:scale(1)}}@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}@keyframes starPop{0%{transform:scale(0) rotate(-30deg)}60%{transform:scale(1.3) rotate(10deg)}100%{transform:scale(1) rotate(0deg)}}";
+const CSS=GF+"*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;margin:0;padding:0;}::-webkit-scrollbar{width:3px;}::-webkit-scrollbar-thumb{background:#1A2840;border-radius:3px;}input::placeholder,textarea::placeholder{color:#4A5568;}@keyframes fadeIn{from{opacity:0}to{opacity:1}}@keyframes slideUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}@keyframes slideDown{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:translateY(0)}}@keyframes slideR{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:translateX(0)}}@keyframes slideL{from{opacity:0;transform:translateX(-20px)}to{opacity:1;transform:translateX(0)}}@keyframes msgIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}@keyframes dot{0%,80%,100%{transform:scale(0.6);opacity:0.4}40%{transform:scale(1.3);opacity:1}}@keyframes pulse{0%,100%{box-shadow:0 0 40px rgba(79,142,247,0.5)}50%{box-shadow:0 0 70px rgba(79,142,247,0.8)}}@keyframes ring{0%,100%{transform:scale(1);opacity:0.3}50%{transform:scale(1.15);opacity:0}}@keyframes badgePop{0%{transform:scale(0)}60%{transform:scale(1.2)}100%{transform:scale(1)}}@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}@keyframes reactPop{0%{transform:scale(0) translateY(10px);opacity:0}60%{transform:scale(1.3) translateY(-3px)}100%{transform:scale(1) translateY(0);opacity:1}}@keyframes reactBarIn{from{opacity:0;transform:scale(0.8) translateY(8px)}to{opacity:1;transform:scale(1) translateY(0)}}";
 
 export default function App(){
 const[user,setUser]=useState(null);
@@ -59,22 +60,25 @@ const[recentAct,setRecentAct]=useState([]);const[chatBg,setChatBg]=useState("dot
 const[contactProfile,setContactProfile]=useState(null);
 const[contactBio,setContactBio]=useState("");const[contactUname,setContactUname]=useState("");
 const[contactPic,setContactPic]=useState(null);
-const[starred,setStarred]=useState({});
-const[showStarred,setShowStarred]=useState(false);
-const[disappear,setDisappear]=useState({});
-const[showDisappear,setShowDisappear]=useState(false);
+const[starred,setStarred]=useState({});const[showStarred,setShowStarred]=useState(false);
+const[disappear,setDisappear]=useState({});const[showDisappear,setShowDisappear]=useState(false);
+const[reactMenu,setReactMenu]=useState(null);
+const[reactions,setReactions]=useState({});
 
 const endRef=useRef(null);const fileRef=useRef(null);const sFRef=useRef(null);const picRef=useRef(null);
 const lvRef=useRef(null);const rvRef=useRef(null);const pcRef=useRef(null);const lsRef=useRef(null);
 const typTimer=useRef(null);const notifId=useRef(0);const recTimer=useRef(null);
-const msgMenuRef=useRef(null);const aiEndRef=useRef(null);
+const msgMenuRef=useRef(null);const aiEndRef=useRef(null);const reactMenuRef=useRef(null);
 
 useEffect(()=>{if(endRef.current)endRef.current.scrollIntoView({behavior:"smooth"});},[msgs,isTyping]);
 useEffect(()=>{if(aiEndRef.current)aiEndRef.current.scrollIntoView({behavior:"smooth"});},[aiMsgs,aiLoad,aiStream]);
 useEffect(()=>{
-  const h=e=>{if(msgMenu&&msgMenuRef.current&&!msgMenuRef.current.contains(e.target))setMsgMenu(null);};
+  const h=e=>{
+    if(msgMenu&&msgMenuRef.current&&!msgMenuRef.current.contains(e.target))setMsgMenu(null);
+    if(reactMenu&&reactMenuRef.current&&!reactMenuRef.current.contains(e.target))setReactMenu(null);
+  };
   document.addEventListener("mousedown",h);return()=>document.removeEventListener("mousedown",h);
-},[msgMenu]);
+},[msgMenu,reactMenu]);
 
 useEffect(()=>{
   const unsub=onAuthStateChanged(auth,async u=>{
@@ -108,19 +112,6 @@ const loadAll=u=>{
   onValue(ref(db,"disappear/"+u.uid),snap=>{setDisappear(snap.val()||{});});
 };
 
-useEffect(()=>{
-  if(!activeChat||!msgs.length)return;
-  const dur=disappear[activeChat.chatId];
-  if(!dur)return;
-  const now=Date.now();
-  msgs.forEach((msg,i)=>{
-    if(msg.timestamp&&(now-msg.timestamp)>dur*1000&&!msg.deleted){
-      const keys=Object.keys(msgs);
-      if(keys[i])set(ref(db,"chats/"+activeChat.chatId+"/messages/"+keys[i]+"/deleted"),true);
-    }
-  });
-},[msgs,disappear,activeChat]);
-
 const loadContactProfile=async(contact)=>{
   setContactProfile(contact);setContactBio("");setContactUname("");setContactPic(null);
   try{
@@ -133,11 +124,17 @@ const loadContactProfile=async(contact)=>{
 const toggleStar=async(msgKey,msg)=>{
   if(!user||!activeChat)return;
   const path="starred/"+user.uid+"/"+activeChat.chatId+"_"+msgKey;
-  if(starred[activeChat.chatId+"_"+msgKey]){
-    await set(ref(db,path),null);
-  }else{
-    await set(ref(db,path),{text:msg.text||"",image:msg.image||null,senderName:msg.senderName,timestamp:msg.timestamp,chatId:activeChat.chatId,chatName:activeChat.name,msgKey});
-  }
+  if(starred[activeChat.chatId+"_"+msgKey])await set(ref(db,path),null);
+  else await set(ref(db,path),{text:msg.text||"",image:msg.image||null,senderName:msg.senderName,timestamp:msg.timestamp,chatId:activeChat.chatId,chatName:activeChat.name,msgKey});
+};
+
+const addReaction=async(msgKey,emoji)=>{
+  if(!user||!activeChat)return;
+  const path="chats/"+activeChat.chatId+"/messages/"+msgKey+"/reactions/"+user.uid;
+  const cur=reactions[msgKey]&&reactions[msgKey][user.uid];
+  if(cur===emoji)await set(ref(db,path),null);
+  else await set(ref(db,path),emoji);
+  setReactMenu(null);setMsgMenu(null);
 };
 
 const setDisappearTime=async(chatId,val)=>{
@@ -219,11 +216,18 @@ const startChat=async()=>{
   setNEmail("");setShowNew(false);openChat({...found,chatId});
 };
 const openChat=c=>{
-  setActiveChat(c);setNav("chat");setShowEmoji(false);setReplyTo(null);setMsgMenu(null);setShowStarred(false);setShowDisappear(false);
+  setActiveChat(c);setNav("chat");setShowEmoji(false);setReplyTo(null);setMsgMenu(null);setReactMenu(null);setShowStarred(false);setShowDisappear(false);
   set(ref(db,"userChats/"+user.uid+"/"+c.chatId+"/unread"),0);
   setUnread(p=>({...p,[c.chatId]:0}));
   off(ref(db,"chats/"+c.chatId+"/messages"));
-  onValue(ref(db,"chats/"+c.chatId+"/messages"),snap=>{setMsgs(Object.values(snap.val()||{}).sort((a,b)=>a.timestamp-b.timestamp));});
+  onValue(ref(db,"chats/"+c.chatId+"/messages"),snap=>{
+    const data=snap.val()||{};
+    const arr=Object.values(data).sort((a,b)=>a.timestamp-b.timestamp);
+    setMsgs(arr);
+    const reacts={};
+    Object.entries(data).forEach(([k,v])=>{if(v.reactions)reacts[k]=v.reactions;});
+    setReactions(reacts);
+  });
   onValue(ref(db,"chats/"+c.chatId+"/typing"),snap=>{
     const td=snap.val()||{};setIsTyping(Object.keys(td).some(uid=>uid!==user.uid&&td[uid]));
   });
@@ -295,6 +299,17 @@ const filtCalls=callHist.filter(c=>{if(callF==="missed")return c.status==="misse
 const bgStyle=()=>{if(chatBg==="dots")return{backgroundImage:"radial-gradient(circle,rgba(79,142,247,0.06) 1px,transparent 1px)",backgroundSize:"24px 24px"};if(chatBg==="grid")return{backgroundImage:"linear-gradient(rgba(79,142,247,0.04) 1px,transparent 1px),linear-gradient(90deg,rgba(79,142,247,0.04) 1px,transparent 1px)",backgroundSize:"30px 30px"};return{};};
 const curDisappear=activeChat?disappear[activeChat.chatId]||0:0;
 
+const getMsgReactions=msgKey=>{
+  const r=reactions[msgKey]||{};
+  const counts={};
+  Object.values(r).forEach(e=>{counts[e]=(counts[e]||0)+1;});
+  return counts;
+};
+const getMyReaction=msgKey=>{
+  const r=reactions[msgKey]||{};
+  return r[user?.uid]||null;
+};
+
 const Inp=({value,onChange,placeholder,type="text",style={},onKeyDown,autoFocus})=>(
   <input value={value} onChange={onChange} placeholder={placeholder} type={type} onKeyDown={onKeyDown} autoFocus={autoFocus}
     style={{padding:"12px 16px",background:T.card,border:"1.5px solid "+T.border,borderRadius:14,color:T.text,fontSize:14,outline:"none",fontFamily:"'Inter',sans-serif",transition:"all 0.2s",width:"100%",boxSizing:"border-box",...style}}
@@ -312,248 +327,25 @@ const Tog=({val,fn})=>(<div onClick={fn} style={{width:50,height:27,borderRadius
 const Modal=({children,onClose})=>(<div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.88)",zIndex:10000,display:"flex",alignItems:"center",justifyContent:"center",padding:20,animation:"fadeIn 0.2s ease"}}><div onClick={e=>e.stopPropagation()} style={{width:"100%",maxWidth:420,animation:"slideUp 0.3s ease"}}>{children}</div></div>);
 const Av=({name,p,size=44})=>p?<img src={p} alt="a" style={{width:size,height:size,borderRadius:size*0.33,objectFit:"cover",flexShrink:0}} />:<div style={{width:size,height:size,borderRadius:size*0.33,background:cfn(name),display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:size*0.3,color:"#fff",flexShrink:0}}>{gi(name)}</div>;
 
-if(loading)return(
-<div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",background:T.bg,flexDirection:"column",gap:28,fontFamily:"'Poppins',sans-serif"}}>
-<style>{CSS}</style>
-<div style={{position:"relative"}}>
-<div style={{width:100,height:100,borderRadius:30,background:T.grad,display:"flex",alignItems:"center",justifyContent:"center",fontSize:48,animation:"pulse 2s infinite",boxShadow:"0 0 60px rgba(79,142,247,0.6)"}}>💬</div>
-<div style={{position:"absolute",inset:-8,borderRadius:38,border:"2px solid rgba(79,142,247,0.3)",animation:"ring 2s infinite"}} />
-<div style={{position:"absolute",inset:-18,borderRadius:48,border:"1px solid rgba(139,92,246,0.15)",animation:"ring 2s 0.4s infinite"}} />
-</div>
-<div style={{textAlign:"center"}}>
-<div style={{fontSize:30,fontWeight:900,background:T.grad,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>Khan Chats</div>
-<div style={{color:T.muted,fontSize:13,marginTop:6}}>Premium Messaging</div>
-</div>
-<div style={{display:"flex",gap:10}}>{[0,1,2].map(i=><div key={i} style={{width:9,height:9,borderRadius:"50%",background:T.grad,animation:"dot 1.4s "+(i*0.2)+"s infinite"}} />)}</div>
-</div>
-);
+if(loading)return(<div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",background:T.bg,flexDirection:"column",gap:28,fontFamily:"'Poppins',sans-serif"}}><style>{CSS}</style><div style={{position:"relative"}}><div style={{width:100,height:100,borderRadius:30,background:T.grad,display:"flex",alignItems:"center",justifyContent:"center",fontSize:48,animation:"pulse 2s infinite",boxShadow:"0 0 60px rgba(79,142,247,0.6)"}}>💬</div><div style={{position:"absolute",inset:-8,borderRadius:38,border:"2px solid rgba(79,142,247,0.3)",animation:"ring 2s infinite"}} /><div style={{position:"absolute",inset:-18,borderRadius:48,border:"1px solid rgba(139,92,246,0.15)",animation:"ring 2s 0.4s infinite"}} /></div><div style={{textAlign:"center"}}><div style={{fontSize:30,fontWeight:900,background:T.grad,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>Khan Chats</div><div style={{color:T.muted,fontSize:13,marginTop:6}}>Premium Messaging</div></div><div style={{display:"flex",gap:10}}>{[0,1,2].map(i=><div key={i} style={{width:9,height:9,borderRadius:"50%",background:T.grad,animation:"dot 1.4s "+(i*0.2)+"s infinite"}} />)}</div></div>);
 
-if(screen==="login"||screen==="register")return(
-<div style={{display:"flex",alignItems:"center",justifyContent:"center",minHeight:"100vh",background:T.bg,fontFamily:"'Poppins',sans-serif",padding:20,animation:"fadeIn 0.5s ease"}}>
-<style>{CSS}</style>
-<div style={{width:"100%",maxWidth:420}}>
-<div style={{textAlign:"center",marginBottom:44}}>
-<div style={{width:88,height:88,borderRadius:28,background:T.grad,display:"flex",alignItems:"center",justifyContent:"center",fontSize:44,margin:"0 auto 20px",boxShadow:T.shadowL,animation:"pulse 3s infinite"}}>💬</div>
-<h1 style={{color:T.text,fontWeight:900,fontSize:32,letterSpacing:"-0.8px"}}>Khan Chats</h1>
-<p style={{color:T.muted,fontSize:13,marginTop:8}}>Your premium messaging experience</p>
-</div>
-<Card style={{padding:5,marginBottom:24}}>
-<div style={{display:"flex",borderRadius:17}}>
-{["login","register"].map(sc=><div key={sc} onClick={()=>{setScreen(sc);setAErr("");}} style={{flex:1,textAlign:"center",padding:"13px",cursor:"pointer",fontWeight:700,fontSize:14,background:screen===sc?T.grad:"transparent",color:screen===sc?"#fff":T.muted,borderRadius:15,margin:2,transition:"all 0.3s"}}>{sc==="login"?"Sign In":"Sign Up"}</div>)}
-</div>
-</Card>
-<div style={{display:"flex",flexDirection:"column",gap:12}}>
-{screen==="register"&&<Inp value={dn} onChange={e=>setDn(e.target.value)} placeholder="Full name" />}
-<Inp value={em} onChange={e=>setEm(e.target.value)} placeholder="Email address" type="email" />
-<Inp value={pw} onChange={e=>setPw(e.target.value)} placeholder="Password (6+ chars)" type="password" onKeyDown={e=>e.key==="Enter"&&(screen==="login"?login():register())} />
-</div>
-{aErr&&<div style={{color:"#EF4444",fontSize:13,margin:"12px 0",padding:"10px 14px",background:"rgba(239,68,68,0.08)",borderRadius:12,border:"1px solid rgba(239,68,68,0.2)"}}>{aErr}</div>}
-<Btn onClick={screen==="login"?login:register} style={{marginTop:16,fontSize:15,padding:"15px",borderRadius:18,boxShadow:T.shadowL}}>{aLoad?"Please wait...":(screen==="login"?"Sign In →":"Create Account →")}</Btn>
-<p style={{color:T.muted,fontSize:11,textAlign:"center",marginTop:22,lineHeight:1.8}}>Independent Messaging · Not affiliated with WhatsApp or Meta<br/><span onClick={()=>setPolicy("privacy")} style={{color:T.blue,cursor:"pointer"}}>Privacy Policy</span>{" · "}<span onClick={()=>setPolicy("terms")} style={{color:T.blue,cursor:"pointer"}}>Terms</span></p>
-</div>
-{policy&&<Modal onClose={()=>setPolicy(null)}><Card style={{padding:28,maxHeight:"78vh",overflowY:"auto"}}><div style={{fontWeight:800,fontSize:18,color:T.text,marginBottom:14}}>{policy==="privacy"?"🔒 Privacy Policy":"📋 Terms"}</div><div style={{color:T.mutedL,fontSize:13,lineHeight:1.9}}>{policy==="privacy"?<><p>Khan Chats is independent and committed to your privacy.</p><p><strong style={{color:T.text}}>Data:</strong> Email, name, photo, messages.</p><p><strong style={{color:T.text}}>Security:</strong> Firebase.</p></>:<><p>By using Khan Chats you agree.</p><p><strong style={{color:T.text}}>Use:</strong> Lawful only.</p><p>Not affiliated with WhatsApp or Meta.</p></>}</div><Btn onClick={()=>setPolicy(null)} style={{marginTop:18}}>Close</Btn></Card></Modal>}
-</div>
-);
+if(screen==="login"||screen==="register")return(<div style={{display:"flex",alignItems:"center",justifyContent:"center",minHeight:"100vh",background:T.bg,fontFamily:"'Poppins',sans-serif",padding:20,animation:"fadeIn 0.5s ease"}}><style>{CSS}</style><div style={{width:"100%",maxWidth:420}}><div style={{textAlign:"center",marginBottom:44}}><div style={{width:88,height:88,borderRadius:28,background:T.grad,display:"flex",alignItems:"center",justifyContent:"center",fontSize:44,margin:"0 auto 20px",boxShadow:T.shadowL,animation:"pulse 3s infinite"}}>💬</div><h1 style={{color:T.text,fontWeight:900,fontSize:32,letterSpacing:"-0.8px"}}>Khan Chats</h1><p style={{color:T.muted,fontSize:13,marginTop:8}}>Your premium messaging experience</p></div><Card style={{padding:5,marginBottom:24}}><div style={{display:"flex",borderRadius:17}}>{["login","register"].map(sc=><div key={sc} onClick={()=>{setScreen(sc);setAErr("");}} style={{flex:1,textAlign:"center",padding:"13px",cursor:"pointer",fontWeight:700,fontSize:14,background:screen===sc?T.grad:"transparent",color:screen===sc?"#fff":T.muted,borderRadius:15,margin:2,transition:"all 0.3s"}}>{sc==="login"?"Sign In":"Sign Up"}</div>)}</div></Card><div style={{display:"flex",flexDirection:"column",gap:12}}>{screen==="register"&&<Inp value={dn} onChange={e=>setDn(e.target.value)} placeholder="Full name" />}<Inp value={em} onChange={e=>setEm(e.target.value)} placeholder="Email address" type="email" /><Inp value={pw} onChange={e=>setPw(e.target.value)} placeholder="Password (6+ chars)" type="password" onKeyDown={e=>e.key==="Enter"&&(screen==="login"?login():register())} /></div>{aErr&&<div style={{color:"#EF4444",fontSize:13,margin:"12px 0",padding:"10px 14px",background:"rgba(239,68,68,0.08)",borderRadius:12,border:"1px solid rgba(239,68,68,0.2)"}}>{aErr}</div>}<Btn onClick={screen==="login"?login:register} style={{marginTop:16,fontSize:15,padding:"15px",borderRadius:18,boxShadow:T.shadowL}}>{aLoad?"Please wait...":(screen==="login"?"Sign In →":"Create Account →")}</Btn><p style={{color:T.muted,fontSize:11,textAlign:"center",marginTop:22,lineHeight:1.8}}>Independent Messaging · Not affiliated with WhatsApp or Meta<br/><span onClick={()=>setPolicy("privacy")} style={{color:T.blue,cursor:"pointer"}}>Privacy Policy</span>{" · "}<span onClick={()=>setPolicy("terms")} style={{color:T.blue,cursor:"pointer"}}>Terms</span></p></div>{policy&&<Modal onClose={()=>setPolicy(null)}><Card style={{padding:28,maxHeight:"78vh",overflowY:"auto"}}><div style={{fontWeight:800,fontSize:18,color:T.text,marginBottom:14}}>{policy==="privacy"?"🔒 Privacy Policy":"📋 Terms"}</div><div style={{color:T.mutedL,fontSize:13,lineHeight:1.9}}>{policy==="privacy"?<><p>Khan Chats is independent and committed to your privacy.</p><p><strong style={{color:T.text}}>Data:</strong> Email, name, photo, messages.</p><p><strong style={{color:T.text}}>Security:</strong> Firebase.</p></>:<><p>By using Khan Chats you agree.</p><p><strong style={{color:T.text}}>Use:</strong> Lawful only.</p><p>Not affiliated with WhatsApp or Meta.</p></>}</div><Btn onClick={()=>setPolicy(null)} style={{marginTop:18}}>Close</Btn></Card></Modal>}</div>);
 
-if(contactProfile)return(
-<div style={{position:"fixed",inset:0,background:T.bg,zIndex:9998,display:"flex",flexDirection:"column",fontFamily:"'Inter',sans-serif",color:T.text,animation:"slideL 0.3s ease"}}>
-<style>{CSS}</style>
-<div style={{display:"flex",alignItems:"center",padding:"15px 18px",background:T.card,gap:12,borderBottom:"1px solid "+T.border,boxShadow:"0 2px 12px rgba(0,0,0,0.3)"}}>
-<div onClick={()=>setContactProfile(null)} style={{width:38,height:38,borderRadius:12,background:T.card2,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:17,border:"1px solid "+T.border,flexShrink:0}}>←</div>
-<div style={{fontWeight:800,fontSize:19,fontFamily:"'Poppins',sans-serif"}}>Contact Info</div>
-</div>
-<div style={{flex:1,overflowY:"auto"}}>
-<div style={{background:T.grad,padding:"40px 20px 30px",textAlign:"center",position:"relative",overflow:"hidden"}}>
-<div style={{position:"absolute",top:-30,left:-30,width:150,height:150,borderRadius:"50%",background:"rgba(255,255,255,0.04)"}} />
-<div style={{position:"relative"}}>
-{contactPic?<img src={contactPic} alt="p" style={{width:110,height:110,borderRadius:"50%",objectFit:"cover",border:"4px solid rgba(255,255,255,0.4)",margin:"0 auto",display:"block",boxShadow:"0 8px 32px rgba(0,0,0,0.3)"}} />:<div style={{width:110,height:110,borderRadius:"50%",background:"rgba(255,255,255,0.15)",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,fontSize:40,color:"#fff",border:"4px solid rgba(255,255,255,0.3)",margin:"0 auto"}}>{gi(contactProfile.name)}</div>}
-<div style={{color:"#fff",fontWeight:900,fontSize:26,marginTop:16,fontFamily:"'Poppins',sans-serif"}}>{contactProfile.name}</div>
-{contactUname&&<div style={{color:"rgba(255,255,255,0.6)",fontSize:14,marginTop:4}}>{"@"+contactUname}</div>}
-<div style={{color:"rgba(255,255,255,0.5)",fontSize:12,marginTop:4}}>{contactProfile.email}</div>
-</div>
-</div>
-<div style={{padding:18,display:"flex",gap:12,justifyContent:"center"}}>
-{[["💬","Message",()=>{setContactProfile(null);openChat(contactProfile);}],["📞","Audio",()=>{setContactProfile(null);openChat(contactProfile);setTimeout(()=>startCall("audio"),500);}],["📹","Video",()=>{setContactProfile(null);openChat(contactProfile);setTimeout(()=>startCall("video"),500);}]].map(([icon,label,fn])=>(
-<div key={label} onClick={fn} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:8,padding:"16px 8px",background:T.card,borderRadius:18,cursor:"pointer",border:"1px solid "+T.border,transition:"all 0.2s"}} onMouseEnter={e=>e.currentTarget.style.background=T.card2} onMouseLeave={e=>e.currentTarget.style.background=T.card}>
-<div style={{width:46,height:46,borderRadius:15,background:T.grad,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,boxShadow:T.shadow}}>{icon}</div>
-<span style={{fontSize:12,fontWeight:700,color:T.text}}>{label}</span>
-</div>
-))}
-</div>
-{contactBio&&<div style={{margin:"0 18px 14px",background:T.card,borderRadius:18,padding:"18px 20px",border:"1px solid "+T.border}}><div style={{fontSize:10,color:T.blue,fontWeight:700,marginBottom:8,textTransform:"uppercase",letterSpacing:1.5}}>About</div><div style={{fontSize:14,color:T.text,lineHeight:1.7}}>{contactBio}</div></div>}
-<div style={{margin:"0 18px 14px",background:T.card,borderRadius:18,border:"1px solid "+T.border,overflow:"hidden"}}>
-<div style={{padding:"18px 20px"}}>
-<div style={{fontSize:10,color:T.blue,fontWeight:700,marginBottom:12,textTransform:"uppercase",letterSpacing:1.5}}>Contact Details</div>
-{[["📧","Email",contactProfile.email],["👤","Name",contactProfile.name],...(contactUname?[["🔖","Username","@"+contactUname]]:[])].map(([icon,label,val])=>(
-<div key={label} style={{display:"flex",alignItems:"center",gap:12,marginBottom:12}}>
-<div style={{width:36,height:36,borderRadius:11,background:T.card2,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>{icon}</div>
-<div style={{flex:1}}><div style={{fontSize:11,color:T.muted,fontWeight:600,marginBottom:2}}>{label}</div><div style={{fontSize:14,color:T.text}}>{val}</div></div>
-</div>
-))}
-</div>
-</div>
-<div style={{margin:"0 18px 30px",background:T.card,borderRadius:18,border:"1px solid "+T.border}}>
-<div style={{padding:"18px 20px"}}>
-<div style={{fontSize:10,color:T.blue,fontWeight:700,marginBottom:14,textTransform:"uppercase",letterSpacing:1.5}}>Actions</div>
-{[["📌",pins.includes(contactProfile.chatId)?"Unpin":"Pin Contact",()=>{togglePin(contactProfile.chatId);}],[locks[contactProfile.chatId]?"🔓":"🔒",locks[contactProfile.chatId]?"Remove Lock":"Lock Chat",()=>{if(locks[contactProfile.chatId]){if(window.confirm("Remove lock?"))removeLock(contactProfile.chatId);}else{setLModal(contactProfile.chatId);setLPin("");setLErr("");setContactProfile(null);}}]].map(([icon,label,fn])=>(
-<div key={label} onClick={fn} style={{display:"flex",alignItems:"center",gap:12,padding:"13px 14px",background:T.card2,borderRadius:13,marginBottom:8,cursor:"pointer",border:"1px solid "+T.border,transition:"all 0.2s"}} onMouseEnter={e=>e.currentTarget.style.background=T.card3} onMouseLeave={e=>e.currentTarget.style.background=T.card2}>
-<div style={{width:36,height:36,borderRadius:11,background:T.grad,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>{icon}</div>
-<div style={{fontWeight:600,fontSize:14,color:T.text}}>{label}</div>
-</div>
-))}
-</div>
-</div>
-</div>
-</div>
-);
+if(contactProfile)return(<div style={{position:"fixed",inset:0,background:T.bg,zIndex:9998,display:"flex",flexDirection:"column",fontFamily:"'Inter',sans-serif",color:T.text,animation:"slideL 0.3s ease"}}><style>{CSS}</style><div style={{display:"flex",alignItems:"center",padding:"15px 18px",background:T.card,gap:12,borderBottom:"1px solid "+T.border,boxShadow:"0 2px 12px rgba(0,0,0,0.3)"}}><div onClick={()=>setContactProfile(null)} style={{width:38,height:38,borderRadius:12,background:T.card2,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:17,border:"1px solid "+T.border,flexShrink:0}}>←</div><div style={{fontWeight:800,fontSize:19,fontFamily:"'Poppins',sans-serif"}}>Contact Info</div></div><div style={{flex:1,overflowY:"auto"}}><div style={{background:T.grad,padding:"40px 20px 30px",textAlign:"center",position:"relative",overflow:"hidden"}}><div style={{position:"relative"}}>{contactPic?<img src={contactPic} alt="p" style={{width:110,height:110,borderRadius:"50%",objectFit:"cover",border:"4px solid rgba(255,255,255,0.4)",margin:"0 auto",display:"block",boxShadow:"0 8px 32px rgba(0,0,0,0.3)"}} />:<div style={{width:110,height:110,borderRadius:"50%",background:"rgba(255,255,255,0.15)",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,fontSize:40,color:"#fff",border:"4px solid rgba(255,255,255,0.3)",margin:"0 auto"}}>{gi(contactProfile.name)}</div>}<div style={{color:"#fff",fontWeight:900,fontSize:26,marginTop:16,fontFamily:"'Poppins',sans-serif"}}>{contactProfile.name}</div>{contactUname&&<div style={{color:"rgba(255,255,255,0.6)",fontSize:14,marginTop:4}}>{"@"+contactUname}</div>}<div style={{color:"rgba(255,255,255,0.5)",fontSize:12,marginTop:4}}>{contactProfile.email}</div></div></div><div style={{padding:18,display:"flex",gap:12,justifyContent:"center"}}>{[["💬","Message",()=>{setContactProfile(null);openChat(contactProfile);}],["📞","Audio",()=>{setContactProfile(null);openChat(contactProfile);setTimeout(()=>startCall("audio"),500);}],["📹","Video",()=>{setContactProfile(null);openChat(contactProfile);setTimeout(()=>startCall("video"),500);}]].map(([icon,label,fn])=>(<div key={label} onClick={fn} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:8,padding:"16px 8px",background:T.card,borderRadius:18,cursor:"pointer",border:"1px solid "+T.border,transition:"all 0.2s"}} onMouseEnter={e=>e.currentTarget.style.background=T.card2} onMouseLeave={e=>e.currentTarget.style.background=T.card}><div style={{width:46,height:46,borderRadius:15,background:T.grad,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,boxShadow:T.shadow}}>{icon}</div><span style={{fontSize:12,fontWeight:700,color:T.text}}>{label}</span></div>))}</div>{contactBio&&<div style={{margin:"0 18px 14px",background:T.card,borderRadius:18,padding:"18px 20px",border:"1px solid "+T.border}}><div style={{fontSize:10,color:T.blue,fontWeight:700,marginBottom:8,textTransform:"uppercase",letterSpacing:1.5}}>About</div><div style={{fontSize:14,color:T.text,lineHeight:1.7}}>{contactBio}</div></div>}<div style={{margin:"0 18px 14px",background:T.card,borderRadius:18,border:"1px solid "+T.border}}><div style={{padding:"18px 20px"}}><div style={{fontSize:10,color:T.blue,fontWeight:700,marginBottom:12,textTransform:"uppercase",letterSpacing:1.5}}>Contact Details</div>{[["📧","Email",contactProfile.email],["👤","Name",contactProfile.name],...(contactUname?[["🔖","Username","@"+contactUname]]:[])].map(([icon,label,val])=>(<div key={label} style={{display:"flex",alignItems:"center",gap:12,marginBottom:12}}><div style={{width:36,height:36,borderRadius:11,background:T.card2,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>{icon}</div><div style={{flex:1}}><div style={{fontSize:11,color:T.muted,fontWeight:600,marginBottom:2}}>{label}</div><div style={{fontSize:14,color:T.text}}>{val}</div></div></div>))}</div></div><div style={{margin:"0 18px 30px",background:T.card,borderRadius:18,border:"1px solid "+T.border}}><div style={{padding:"18px 20px"}}><div style={{fontSize:10,color:T.blue,fontWeight:700,marginBottom:14,textTransform:"uppercase",letterSpacing:1.5}}>Actions</div>{[["📌",pins.includes(contactProfile.chatId)?"Unpin":"Pin Contact",()=>{togglePin(contactProfile.chatId);}],[locks[contactProfile.chatId]?"🔓":"🔒",locks[contactProfile.chatId]?"Remove Lock":"Lock Chat",()=>{if(locks[contactProfile.chatId]){if(window.confirm("Remove lock?"))removeLock(contactProfile.chatId);}else{setLModal(contactProfile.chatId);setLPin("");setLErr("");setContactProfile(null);}}]].map(([icon,label,fn])=>(<div key={label} onClick={fn} style={{display:"flex",alignItems:"center",gap:12,padding:"13px 14px",background:T.card2,borderRadius:13,marginBottom:8,cursor:"pointer",border:"1px solid "+T.border,transition:"all 0.2s"}} onMouseEnter={e=>e.currentTarget.style.background=T.card3} onMouseLeave={e=>e.currentTarget.style.background=T.card2}><div style={{width:36,height:36,borderRadius:11,background:T.grad,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>{icon}</div><div style={{fontWeight:600,fontSize:14,color:T.text}}>{label}</div></div>))}</div></div></div></div>);
 
-if(showSett)return(
-<div style={{position:"fixed",inset:0,background:T.bg,zIndex:9999,display:"flex",flexDirection:"column",fontFamily:"'Inter',sans-serif",color:T.text,animation:"slideR 0.3s ease"}}>
-<style>{CSS}</style>
-<div style={{display:"flex",alignItems:"center",padding:"15px 18px",background:T.card,gap:12,borderBottom:"1px solid "+T.border,boxShadow:"0 2px 12px rgba(0,0,0,0.3)"}}>
-<div onClick={()=>setShowSett(false)} style={{width:38,height:38,borderRadius:12,background:T.card2,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:17,border:"1px solid "+T.border,flexShrink:0}}>←</div>
-<div style={{fontWeight:800,fontSize:19,fontFamily:"'Poppins',sans-serif"}}>Settings</div>
-</div>
-<div style={{display:"flex",background:T.card,borderBottom:"1px solid "+T.border,overflowX:"auto",padding:"0 6px"}}>
-{[["profile","👤","Profile"],["privacy","🔒","Privacy"],["notifs","🔔","Notifs"],["lang","🌐","Lang"],["chat","🎨","Chat"],["ai","🤖","Khan AI"],["legal","📋","Legal"]].map(([tab,icon,label])=>
-<div key={tab} onClick={()=>setSTab(tab)} style={{padding:"11px 13px",cursor:"pointer",fontSize:11,fontWeight:700,whiteSpace:"nowrap",color:sTab===tab?T.blue:T.muted,borderBottom:sTab===tab?"2.5px solid "+T.blue:"2.5px solid transparent",transition:"all 0.2s"}}>{icon+" "+label}</div>
-)}
-</div>
-<div style={{flex:1,overflowY:"auto",padding:18,display:"flex",flexDirection:"column",gap:14}}>
-
-{sTab==="profile"&&<div style={{animation:"slideUp 0.3s ease"}}>
-<div style={{background:T.grad,borderRadius:24,padding:28,textAlign:"center",marginBottom:16,boxShadow:T.shadowL,position:"relative",overflow:"hidden"}}>
-<div style={{position:"relative",display:"inline-block",marginBottom:14}}>
-{pic?<img src={pic} alt="p" style={{width:96,height:96,borderRadius:"50%",objectFit:"cover",border:"3px solid rgba(255,255,255,0.4)"}} />:<div style={{width:96,height:96,borderRadius:"50%",background:"rgba(255,255,255,0.15)",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,fontSize:34,color:"#fff",border:"3px solid rgba(255,255,255,0.3)",margin:"0 auto"}}>{gi(user?.displayName)}</div>}
-<div onClick={()=>picRef.current?.click()} style={{position:"absolute",bottom:2,right:2,background:"#fff",borderRadius:"50%",width:30,height:30,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:14,boxShadow:"0 2px 10px rgba(0,0,0,0.25)"}}>📷</div>
-</div>
-<div style={{color:"#fff",fontWeight:800,fontSize:20,fontFamily:"'Poppins',sans-serif"}}>{user?.displayName}</div>
-<div style={{color:"rgba(255,255,255,0.6)",fontSize:13,marginTop:4}}>{user?.email}</div>
-{uname&&<div style={{color:"rgba(255,255,255,0.45)",fontSize:12,marginTop:2}}>{"@"+uname}</div>}
-<input type="file" accept="image/*" ref={picRef} onChange={handlePic} style={{display:"none"}} />
-</div>
-<Card style={{padding:20,marginBottom:14}}>
-<div style={{fontSize:10,color:T.blue,fontWeight:700,marginBottom:14,textTransform:"uppercase",letterSpacing:1.5}}>Edit Profile</div>
-{[["Display Name",newName,setNewName,"Your name"],["Username",uname,setUname,"@username"],["Bio",bio,setBio,"About you"]].map(([l,v,fn,ph])=>(
-<div key={l} style={{marginBottom:12}}>
-<div style={{fontSize:11,color:T.mutedL,fontWeight:600,marginBottom:5}}>{l}</div>
-<Inp value={v} onChange={e=>fn(e.target.value)} placeholder={ph} />
-</div>
-))}
-<Btn onClick={saveProfile} style={{marginTop:6}}>Save Changes ✓</Btn>
-</Card>
-<Btn onClick={()=>setLogoutC(true)} v="d" style={{marginBottom:10}}>🚪 Sign Out</Btn>
-<div onClick={()=>setDeleteC(true)} style={{padding:"12px",background:"transparent",borderRadius:14,textAlign:"center",color:"#EF4444",fontWeight:600,cursor:"pointer",border:"1px solid rgba(239,68,68,0.3)",fontSize:13}}>🗑️ Delete Account</div>
-</div>}
-
-{sTab==="privacy"&&<div style={{animation:"slideUp 0.3s ease"}}>
-{[["Last Seen","Show last active",true],["Online Status","Show when online",true],["Read Receipts","Show read ticks",true]].map(([t,d,v],i)=>(
-<Card key={i} style={{padding:"15px 18px",marginBottom:10}}>
-<div style={{display:"flex",alignItems:"center",gap:12}}><div style={{flex:1}}><div style={{fontWeight:700,fontSize:13,color:T.text}}>{t}</div><div style={{fontSize:12,color:T.muted,marginTop:2}}>{d}</div></div><Tog val={v} fn={()=>{}} /></div>
-</Card>
-))}
-</div>}
-
-{sTab==="notifs"&&<div style={{animation:"slideUp 0.3s ease"}}>
-{[["Messages","msgs"],["Updates","updates"],["Calls","calls"]].map(([t,k])=>(
-<Card key={k} style={{padding:"15px 18px",marginBottom:10}}>
-<div style={{display:"flex",alignItems:"center",gap:12}}><div style={{flex:1}}><div style={{fontWeight:700,fontSize:13,color:T.text}}>{t}</div></div><Tog val={nSett[k]} fn={()=>setNSett(p=>({...p,[k]:!p[k]}))} /></div>
-</Card>
-))}
-</div>}
-
-{sTab==="lang"&&<div style={{animation:"slideUp 0.3s ease"}}>
-<Card style={{padding:16,marginBottom:12}}>
-<div style={{fontSize:10,color:T.blue,fontWeight:700,marginBottom:10,textTransform:"uppercase",letterSpacing:1.5}}>Selected: {lang}</div>
-<Inp value={langQ} onChange={e=>setLangQ(e.target.value)} placeholder="Search languages..." />
-</Card>
-{LANGS.filter(l=>l.toLowerCase().includes(langQ.toLowerCase())).map(l=>(
-<div key={l} onClick={()=>{setLang(l);setLangQ("");}} style={{padding:"12px 16px",background:lang===l?T.card2:T.card,borderRadius:13,cursor:"pointer",display:"flex",justifyContent:"space-between",marginBottom:6,border:"1.5px solid "+(lang===l?T.blue:T.border),transition:"all 0.15s"}}>
-<span style={{color:T.text,fontSize:13,fontWeight:lang===l?700:400}}>{l}</span>
-{lang===l&&<span style={{color:T.blue,fontWeight:800}}>✓</span>}
-</div>
-))}
-</div>}
-
-{sTab==="chat"&&<div style={{animation:"slideUp 0.3s ease"}}>
-<Card style={{padding:18}}>
-<div style={{fontSize:10,color:T.blue,fontWeight:700,marginBottom:14,textTransform:"uppercase",letterSpacing:1.5}}>Chat Background</div>
-{[["none","No Pattern"],["dots","Dots"],["grid","Grid"]].map(([val,label])=>(
-<div key={val} onClick={()=>setChatBg(val)} style={{padding:"12px 16px",background:chatBg===val?T.card2:T.card,borderRadius:12,cursor:"pointer",display:"flex",justifyContent:"space-between",marginBottom:8,border:"1.5px solid "+(chatBg===val?T.blue:T.border),transition:"all 0.15s"}}>
-<span style={{color:T.text,fontSize:13,fontWeight:chatBg===val?700:400}}>{label}</span>
-{chatBg===val&&<span style={{color:T.blue,fontWeight:800}}>✓</span>}
-</div>
-))}
-</Card>
-</div>}
-
-{sTab==="ai"&&<div style={{display:"flex",flexDirection:"column",height:"calc(100vh - 180px)",animation:"slideUp 0.3s ease"}}>
-<div style={{background:T.grad,borderRadius:22,padding:20,marginBottom:14,textAlign:"center",boxShadow:T.shadowL,position:"relative"}}>
-{aiMsgs.length>0&&<div onClick={()=>{setAiMsgs([]);setAiErr("");setAiStream("");}} style={{position:"absolute",top:10,right:12,background:"rgba(255,255,255,0.15)",borderRadius:10,padding:"3px 10px",color:"#fff",fontSize:11,fontWeight:600,cursor:"pointer"}}>Clear</div>}
-<div style={{fontSize:38,marginBottom:6}}>🤖</div>
-<div style={{fontWeight:800,fontSize:18,color:"#fff",fontFamily:"'Poppins',sans-serif"}}>Khan AI</div>
-<div style={{fontSize:11,color:"rgba(255,255,255,0.65)",marginTop:2}}>Powered by Gemini · Free · Fast</div>
-</div>
-<div style={{flex:1,overflowY:"auto",display:"flex",flexDirection:"column",gap:10,marginBottom:12}}>
-{aiMsgs.length===0&&!aiLoad&&!aiStream&&(
-<div style={{textAlign:"center",color:T.muted,padding:28}}>
-<div style={{fontSize:42,marginBottom:10}}>✨</div>
-<div style={{fontWeight:700,fontSize:14,color:T.text,marginBottom:6}}>Khan AI Ready!</div>
-<div style={{fontSize:12,lineHeight:1.7,marginBottom:16}}>Ask me anything in English or Urdu</div>
-<div style={{display:"flex",flexWrap:"wrap",gap:8,justifyContent:"center"}}>
-{["Hello! 👋","Urdu mein baat karo 🇵🇰","What can you do?","Help me write"].map(q=>(
-<div key={q} onClick={()=>setAiIn(q)} style={{padding:"7px 14px",background:T.card,borderRadius:20,color:T.blue,fontSize:12,fontWeight:600,cursor:"pointer",border:"1px solid "+T.border}}>{q}</div>
-))}
-</div>
-</div>
-)}
-{aiMsgs.map((m,i)=>(
-<div key={i} style={{display:"flex",justifyContent:m.role==="user"?"flex-end":"flex-start",animation:"msgIn 0.25s ease"}}>
-{m.role==="assistant"&&<div style={{width:26,height:26,borderRadius:9,background:T.grad,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,flexShrink:0,marginRight:7,alignSelf:"flex-end"}}>🤖</div>}
-<div style={{maxWidth:"85%",padding:"11px 15px",background:m.role==="user"?T.grad:T.card,borderRadius:m.role==="user"?"18px 18px 5px 18px":"18px 18px 18px 5px",fontSize:13,color:T.text,lineHeight:1.7,border:m.role==="user"?"none":"1px solid "+T.border,whiteSpace:"pre-wrap"}}>{m.text}</div>
-</div>
-))}
-{(aiLoad||aiStream)&&(
-<div style={{display:"flex",justifyContent:"flex-start"}}>
-<div style={{width:26,height:26,borderRadius:9,background:T.grad,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,flexShrink:0,marginRight:7,alignSelf:"flex-end"}}>🤖</div>
-{aiStream?<div style={{maxWidth:"85%",padding:"11px 15px",background:T.card,borderRadius:"18px 18px 18px 5px",fontSize:13,color:T.text,lineHeight:1.7,border:"1px solid "+T.border,whiteSpace:"pre-wrap"}}>{aiStream}<span style={{display:"inline-block",width:2,height:14,background:T.blue,marginLeft:2,animation:"blink 1s infinite",verticalAlign:"middle"}} /></div>
-:<div style={{padding:"11px 16px",background:T.card,borderRadius:"18px 18px 18px 5px",border:"1px solid "+T.border,display:"flex",gap:5,alignItems:"center"}}>{[0,1,2].map(i=><div key={i} style={{width:7,height:7,borderRadius:"50%",background:T.purple,animation:"dot 1.4s "+(i*0.2)+"s infinite"}} />)}</div>}
-</div>
-)}
-{aiErr&&(
-<div style={{padding:"10px 14px",background:"rgba(239,68,68,0.08)",borderRadius:13,border:"1px solid rgba(239,68,68,0.2)",display:"flex",alignItems:"center",gap:10}}>
-<span>⚠️</span><div style={{flex:1,fontSize:12,color:"#EF4444"}}>{aiErr}</div>
-<div onClick={()=>{setAiErr("");const last=aiMsgs.filter(m=>m.role==="user").pop();if(last)setAiIn(last.text);}} style={{padding:"5px 12px",background:T.gradD,borderRadius:9,color:"#fff",fontSize:11,fontWeight:700,cursor:"pointer",flexShrink:0}}>Retry</div>
-</div>
-)}
-<div ref={aiEndRef} />
-</div>
-<div style={{display:"flex",gap:8,alignItems:"flex-end"}}>
-<div style={{flex:1,background:T.card,border:"1.5px solid "+T.border,borderRadius:18,padding:"10px 14px"}}>
-<textarea value={aiIn} onChange={e=>setAiIn(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();askAI();}}} placeholder="Ask in English ya Urdu mein..." rows={1} disabled={aiLoad} style={{width:"100%",background:"none",border:"none",outline:"none",color:T.text,fontSize:13,fontFamily:"'Inter',sans-serif",resize:"none",lineHeight:1.5}} />
-</div>
-<div onClick={askAI} style={{width:44,height:44,borderRadius:14,background:aiIn.trim()&&!aiLoad?T.grad:T.card2,display:"flex",alignItems:"center",justifyContent:"center",cursor:aiLoad?"not-allowed":"pointer",fontSize:18,flexShrink:0,transition:"all 0.2s",opacity:aiLoad?0.6:1}}>{aiLoad?"⏳":"➤"}</div>
-</div>
-</div>}
-
-{sTab==="legal"&&<div style={{animation:"slideUp 0.3s ease"}}>
-{[["🔒 Privacy Policy","privacy"],["📋 Terms","terms"],["📧 Contact","contact"],["❓ Help","help"],["🗑️ Delete Account","delete"]].map(([title,action])=>(
-<Card key={action} style={{padding:"15px 18px",marginBottom:10,cursor:"pointer"}} onClick={()=>{if(action==="delete")setDeleteC(true);else if(action==="contact")alert("📧 khanchats.support@gmail.com");else if(action==="help")alert("FAQ:\n• Chat lock: Settings → Profile\n• Starred: Long press message → ⭐\n• Disappearing: Chat header → ⏱️");else setPolicy(action);}}>
-<div style={{display:"flex",alignItems:"center",gap:12}}><div style={{flex:1}}><div style={{fontWeight:700,fontSize:13,color:T.text}}>{title}</div></div><span style={{color:T.muted,fontSize:18}}>›</span></div>
-</Card>
-))}
-<Card style={{padding:18,marginTop:6,textAlign:"center"}}>
-<div style={{fontWeight:800,fontSize:14,background:T.grad,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",fontFamily:"'Poppins',sans-serif",marginBottom:4}}>Khan Chats v1.0</div>
-<div style={{fontSize:11,color:T.muted,lineHeight:1.8}}>Independent · Not affiliated with WhatsApp or Meta</div>
-</Card>
-</div>}
-
+if(showSett)return(<div style={{position:"fixed",inset:0,background:T.bg,zIndex:9999,display:"flex",flexDirection:"column",fontFamily:"'Inter',sans-serif",color:T.text,animation:"slideR 0.3s ease"}}><style>{CSS}</style><div style={{display:"flex",alignItems:"center",padding:"15px 18px",background:T.card,gap:12,borderBottom:"1px solid "+T.border,boxShadow:"0 2px 12px rgba(0,0,0,0.3)"}}><div onClick={()=>setShowSett(false)} style={{width:38,height:38,borderRadius:12,background:T.card2,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:17,border:"1px solid "+T.border,flexShrink:0}}>←</div><div style={{fontWeight:800,fontSize:19,fontFamily:"'Poppins',sans-serif"}}>Settings</div></div><div style={{display:"flex",background:T.card,borderBottom:"1px solid "+T.border,overflowX:"auto",padding:"0 6px"}}>{[["profile","👤","Profile"],["privacy","🔒","Privacy"],["notifs","🔔","Notifs"],["lang","🌐","Lang"],["chat","🎨","Chat"],["ai","🤖","Khan AI"],["legal","📋","Legal"]].map(([tab,icon,label])=><div key={tab} onClick={()=>setSTab(tab)} style={{padding:"11px 13px",cursor:"pointer",fontSize:11,fontWeight:700,whiteSpace:"nowrap",color:sTab===tab?T.blue:T.muted,borderBottom:sTab===tab?"2.5px solid "+T.blue:"2.5px solid transparent",transition:"all 0.2s"}}>{icon+" "+label}</div>)}</div><div style={{flex:1,overflowY:"auto",padding:18,display:"flex",flexDirection:"column",gap:14}}>
+{sTab==="profile"&&<div style={{animation:"slideUp 0.3s ease"}}><div style={{background:T.grad,borderRadius:24,padding:28,textAlign:"center",marginBottom:16,boxShadow:T.shadowL,position:"relative",overflow:"hidden"}}><div style={{position:"relative",display:"inline-block",marginBottom:14}}>{pic?<img src={pic} alt="p" style={{width:96,height:96,borderRadius:"50%",objectFit:"cover",border:"3px solid rgba(255,255,255,0.4)"}} />:<div style={{width:96,height:96,borderRadius:"50%",background:"rgba(255,255,255,0.15)",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,fontSize:34,color:"#fff",border:"3px solid rgba(255,255,255,0.3)",margin:"0 auto"}}>{gi(user?.displayName)}</div>}<div onClick={()=>picRef.current?.click()} style={{position:"absolute",bottom:2,right:2,background:"#fff",borderRadius:"50%",width:30,height:30,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:14,boxShadow:"0 2px 10px rgba(0,0,0,0.25)"}}>📷</div></div><div style={{color:"#fff",fontWeight:800,fontSize:20,fontFamily:"'Poppins',sans-serif"}}>{user?.displayName}</div><div style={{color:"rgba(255,255,255,0.6)",fontSize:13,marginTop:4}}>{user?.email}</div>{uname&&<div style={{color:"rgba(255,255,255,0.45)",fontSize:12,marginTop:2}}>{"@"+uname}</div>}<input type="file" accept="image/*" ref={picRef} onChange={handlePic} style={{display:"none"}} /></div><Card style={{padding:20,marginBottom:14}}><div style={{fontSize:10,color:T.blue,fontWeight:700,marginBottom:14,textTransform:"uppercase",letterSpacing:1.5}}>Edit Profile</div>{[["Display Name",newName,setNewName,"Your name"],["Username",uname,setUname,"@username"],["Bio",bio,setBio,"About you"]].map(([l,v,fn,ph])=>(<div key={l} style={{marginBottom:12}}><div style={{fontSize:11,color:T.mutedL,fontWeight:600,marginBottom:5}}>{l}</div><Inp value={v} onChange={e=>fn(e.target.value)} placeholder={ph} /></div>))}<Btn onClick={saveProfile} style={{marginTop:6}}>Save Changes ✓</Btn></Card><Btn onClick={()=>setLogoutC(true)} v="d" style={{marginBottom:10}}>🚪 Sign Out</Btn><div onClick={()=>setDeleteC(true)} style={{padding:"12px",background:"transparent",borderRadius:14,textAlign:"center",color:"#EF4444",fontWeight:600,cursor:"pointer",border:"1px solid rgba(239,68,68,0.3)",fontSize:13}}>🗑️ Delete Account</div></div>}
+{sTab==="privacy"&&<div style={{animation:"slideUp 0.3s ease"}}>{[["Last Seen","Show last active",true],["Online Status","Show when online",true],["Read Receipts","Show read ticks",true]].map(([t,d,v],i)=>(<Card key={i} style={{padding:"15px 18px",marginBottom:10}}><div style={{display:"flex",alignItems:"center",gap:12}}><div style={{flex:1}}><div style={{fontWeight:700,fontSize:13,color:T.text}}>{t}</div><div style={{fontSize:12,color:T.muted,marginTop:2}}>{d}</div></div><Tog val={v} fn={()=>{}} /></div></Card>))}</div>}
+{sTab==="notifs"&&<div style={{animation:"slideUp 0.3s ease"}}>{[["Messages","msgs"],["Updates","updates"],["Calls","calls"]].map(([t,k])=>(<Card key={k} style={{padding:"15px 18px",marginBottom:10}}><div style={{display:"flex",alignItems:"center",gap:12}}><div style={{flex:1}}><div style={{fontWeight:700,fontSize:13,color:T.text}}>{t}</div></div><Tog val={nSett[k]} fn={()=>setNSett(p=>({...p,[k]:!p[k]}))} /></div></Card>))}</div>}
+{sTab==="lang"&&<div style={{animation:"slideUp 0.3s ease"}}><Card style={{padding:16,marginBottom:12}}><div style={{fontSize:10,color:T.blue,fontWeight:700,marginBottom:10,textTransform:"uppercase",letterSpacing:1.5}}>Selected: {lang}</div><Inp value={langQ} onChange={e=>setLangQ(e.target.value)} placeholder="Search languages..." /></Card>{LANGS.filter(l=>l.toLowerCase().includes(langQ.toLowerCase())).map(l=>(<div key={l} onClick={()=>{setLang(l);setLangQ("");}} style={{padding:"12px 16px",background:lang===l?T.card2:T.card,borderRadius:13,cursor:"pointer",display:"flex",justifyContent:"space-between",marginBottom:6,border:"1.5px solid "+(lang===l?T.blue:T.border),transition:"all 0.15s"}}><span style={{color:T.text,fontSize:13,fontWeight:lang===l?700:400}}>{l}</span>{lang===l&&<span style={{color:T.blue,fontWeight:800}}>✓</span>}</div>))}</div>}
+{sTab==="chat"&&<div style={{animation:"slideUp 0.3s ease"}}><Card style={{padding:18}}><div style={{fontSize:10,color:T.blue,fontWeight:700,marginBottom:14,textTransform:"uppercase",letterSpacing:1.5}}>Chat Background</div>{[["none","No Pattern"],["dots","Dots"],["grid","Grid"]].map(([val,label])=>(<div key={val} onClick={()=>setChatBg(val)} style={{padding:"12px 16px",background:chatBg===val?T.card2:T.card,borderRadius:12,cursor:"pointer",display:"flex",justifyContent:"space-between",marginBottom:8,border:"1.5px solid "+(chatBg===val?T.blue:T.border),transition:"all 0.15s"}}><span style={{color:T.text,fontSize:13,fontWeight:chatBg===val?700:400}}>{label}</span>{chatBg===val&&<span style={{color:T.blue,fontWeight:800}}>✓</span>}</div>))}</Card></div>}
+{sTab==="ai"&&<div style={{display:"flex",flexDirection:"column",height:"calc(100vh - 180px)",animation:"slideUp 0.3s ease"}}><div style={{background:T.grad,borderRadius:22,padding:20,marginBottom:14,textAlign:"center",boxShadow:T.shadowL,position:"relative"}}>{aiMsgs.length>0&&<div onClick={()=>{setAiMsgs([]);setAiErr("");setAiStream("");}} style={{position:"absolute",top:10,right:12,background:"rgba(255,255,255,0.15)",borderRadius:10,padding:"3px 10px",color:"#fff",fontSize:11,fontWeight:600,cursor:"pointer"}}>Clear</div>}<div style={{fontSize:38,marginBottom:6}}>🤖</div><div style={{fontWeight:800,fontSize:18,color:"#fff",fontFamily:"'Poppins',sans-serif"}}>Khan AI</div><div style={{fontSize:11,color:"rgba(255,255,255,0.65)",marginTop:2}}>Powered by Gemini · Free · Fast</div></div><div style={{flex:1,overflowY:"auto",display:"flex",flexDirection:"column",gap:10,marginBottom:12}}>{aiMsgs.length===0&&!aiLoad&&!aiStream&&(<div style={{textAlign:"center",color:T.muted,padding:28}}><div style={{fontSize:42,marginBottom:10}}>✨</div><div style={{fontWeight:700,fontSize:14,color:T.text,marginBottom:6}}>Khan AI Ready!</div><div style={{fontSize:12,lineHeight:1.7,marginBottom:16}}>Ask me anything in English or Urdu</div><div style={{display:"flex",flexWrap:"wrap",gap:8,justifyContent:"center"}}>{["Hello! 👋","Urdu mein baat karo 🇵🇰","What can you do?","Help me write"].map(q=>(<div key={q} onClick={()=>setAiIn(q)} style={{padding:"7px 14px",background:T.card,borderRadius:20,color:T.blue,fontSize:12,fontWeight:600,cursor:"pointer",border:"1px solid "+T.border}}>{q}</div>))}</div></div>)}{aiMsgs.map((m,i)=>(<div key={i} style={{display:"flex",justifyContent:m.role==="user"?"flex-end":"flex-start",animation:"msgIn 0.25s ease"}}>{m.role==="assistant"&&<div style={{width:26,height:26,borderRadius:9,background:T.grad,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,flexShrink:0,marginRight:7,alignSelf:"flex-end"}}>🤖</div>}<div style={{maxWidth:"85%",padding:"11px 15px",background:m.role==="user"?T.grad:T.card,borderRadius:m.role==="user"?"18px 18px 5px 18px":"18px 18px 18px 5px",fontSize:13,color:T.text,lineHeight:1.7,border:m.role==="user"?"none":"1px solid "+T.border,whiteSpace:"pre-wrap"}}>{m.text}</div></div>))}{(aiLoad||aiStream)&&(<div style={{display:"flex",justifyContent:"flex-start"}}><div style={{width:26,height:26,borderRadius:9,background:T.grad,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,flexShrink:0,marginRight:7,alignSelf:"flex-end"}}>🤖</div>{aiStream?<div style={{maxWidth:"85%",padding:"11px 15px",background:T.card,borderRadius:"18px 18px 18px 5px",fontSize:13,color:T.text,lineHeight:1.7,border:"1px solid "+T.border,whiteSpace:"pre-wrap"}}>{aiStream}<span style={{display:"inline-block",width:2,height:14,background:T.blue,marginLeft:2,animation:"blink 1s infinite",verticalAlign:"middle"}} /></div>:<div style={{padding:"11px 16px",background:T.card,borderRadius:"18px 18px 18px 5px",border:"1px solid "+T.border,display:"flex",gap:5,alignItems:"center"}}>{[0,1,2].map(i=><div key={i} style={{width:7,height:7,borderRadius:"50%",background:T.purple,animation:"dot 1.4s "+(i*0.2)+"s infinite"}} />)}</div>}</div>)}{aiErr&&(<div style={{padding:"10px 14px",background:"rgba(239,68,68,0.08)",borderRadius:13,border:"1px solid rgba(239,68,68,0.2)",display:"flex",alignItems:"center",gap:10}}><span>⚠️</span><div style={{flex:1,fontSize:12,color:"#EF4444"}}>{aiErr}</div><div onClick={()=>{setAiErr("");const last=aiMsgs.filter(m=>m.role==="user").pop();if(last)setAiIn(last.text);}} style={{padding:"5px 12px",background:T.gradD,borderRadius:9,color:"#fff",fontSize:11,fontWeight:700,cursor:"pointer",flexShrink:0}}>Retry</div></div>)}<div ref={aiEndRef} /></div><div style={{display:"flex",gap:8,alignItems:"flex-end"}}><div style={{flex:1,background:T.card,border:"1.5px solid "+T.border,borderRadius:18,padding:"10px 14px"}}><textarea value={aiIn} onChange={e=>setAiIn(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();askAI();}}} placeholder="Ask in English ya Urdu mein..." rows={1} disabled={aiLoad} style={{width:"100%",background:"none",border:"none",outline:"none",color:T.text,fontSize:13,fontFamily:"'Inter',sans-serif",resize:"none",lineHeight:1.5}} /></div><div onClick={askAI} style={{width:44,height:44,borderRadius:14,background:aiIn.trim()&&!aiLoad?T.grad:T.card2,display:"flex",alignItems:"center",justifyContent:"center",cursor:aiLoad?"not-allowed":"pointer",fontSize:18,flexShrink:0,transition:"all 0.2s",opacity:aiLoad?0.6:1}}>{aiLoad?"⏳":"➤"}</div></div></div>}
+{sTab==="legal"&&<div style={{animation:"slideUp 0.3s ease"}}>{[["🔒 Privacy Policy","privacy"],["📋 Terms","terms"],["📧 Contact","contact"],["❓ Help","help"],["🗑️ Delete Account","delete"]].map(([title,action])=>(<Card key={action} style={{padding:"15px 18px",marginBottom:10,cursor:"pointer"}} onClick={()=>{if(action==="delete")setDeleteC(true);else if(action==="contact")alert("📧 khanchats.support@gmail.com");else if(action==="help")alert("FAQ:\n• Reactions: Long press message → 😄\n• Starred: Long press → ⭐\n• Disappearing: Chat header → ⏱️");else setPolicy(action);}}><div style={{display:"flex",alignItems:"center",gap:12}}><div style={{flex:1}}><div style={{fontWeight:700,fontSize:13,color:T.text}}>{title}</div></div><span style={{color:T.muted,fontSize:18}}>›</span></div></Card>)}<Card style={{padding:18,marginTop:6,textAlign:"center"}}><div style={{fontWeight:800,fontSize:14,background:T.grad,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",fontFamily:"'Poppins',sans-serif",marginBottom:4}}>Khan Chats v1.0</div><div style={{fontSize:11,color:T.muted,lineHeight:1.8}}>Independent · Not affiliated with WhatsApp or Meta</div></Card></div>}
 </div>
 {logoutC&&<Modal onClose={()=>setLogoutC(false)}><Card style={{padding:30,textAlign:"center"}}><div style={{fontSize:46,marginBottom:12}}>🚪</div><div style={{fontWeight:800,fontSize:18,color:T.text,marginBottom:8,fontFamily:"'Poppins',sans-serif"}}>Sign Out?</div><div style={{color:T.muted,fontSize:13,marginBottom:20}}>Are you sure?</div><div style={{display:"flex",gap:10}}><Btn onClick={()=>setLogoutC(false)} v="g" style={{flex:1}}>Cancel</Btn><Btn onClick={logout} v="d" style={{flex:1}}>Sign Out</Btn></div></Card></Modal>}
 {deleteC&&<Modal onClose={()=>setDeleteC(false)}><Card style={{padding:30,textAlign:"center"}}><div style={{fontSize:46,marginBottom:12}}>⚠️</div><div style={{fontWeight:800,fontSize:18,color:"#EF4444",marginBottom:8,fontFamily:"'Poppins',sans-serif"}}>Delete Account?</div><div style={{color:T.muted,fontSize:13,marginBottom:20}}>Permanent. Cannot be undone.</div><div style={{display:"flex",gap:10}}><Btn onClick={()=>setDeleteC(false)} v="g" style={{flex:1}}>Cancel</Btn><Btn onClick={async()=>{await logout();setDeleteC(false);}} v="d" style={{flex:1}}>Delete</Btn></div></Card></Modal>}
 {policy&&<Modal onClose={()=>setPolicy(null)}><Card style={{padding:26,maxHeight:"75vh",overflowY:"auto"}}><div style={{fontWeight:800,fontSize:17,color:T.text,marginBottom:12}}>{policy==="privacy"?"🔒 Privacy":"📋 Terms"}</div><div style={{color:T.mutedL,fontSize:13,lineHeight:1.9}}>{policy==="privacy"?<><p>Independent platform.</p><p><strong style={{color:T.text}}>Data:</strong> Email, name, photo, messages.</p></>:<><p>Lawful use only.</p><p>Not affiliated with WhatsApp or Meta.</p></>}</div><Btn onClick={()=>setPolicy(null)} style={{marginTop:16}}>Close</Btn></Card></Modal>}
-</div>
-);
+</div>);
 
 if(lModal)return(<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.92)",zIndex:10001,display:"flex",alignItems:"center",justifyContent:"center",padding:20,fontFamily:"'Poppins',sans-serif"}}><style>{CSS}</style><Card style={{padding:34,maxWidth:360,width:"100%",textAlign:"center",animation:"slideUp 0.3s ease"}}><div style={{width:72,height:72,borderRadius:22,background:T.grad,display:"flex",alignItems:"center",justifyContent:"center",fontSize:32,margin:"0 auto 16px",boxShadow:T.shadow}}>🔒</div><h3 style={{color:T.text,fontWeight:800,fontSize:20,marginBottom:6}}>Set Chat PIN</h3><p style={{color:T.muted,fontSize:13,marginBottom:20}}>Min 4 digits</p><Inp value={lPin} onChange={e=>setLPin(e.target.value.replace(/\D/g,""))} placeholder="• • • •" type="password" style={{fontSize:24,textAlign:"center",letterSpacing:12,marginBottom:8}} />{lErr&&<div style={{color:"#EF4444",fontSize:13,marginBottom:10,padding:"7px",background:"rgba(239,68,68,0.08)",borderRadius:9}}>{lErr}</div>}<div style={{display:"flex",gap:10,marginTop:10}}><Btn onClick={()=>{setLModal(null);setLPin("");setLErr("");}} v="g" style={{flex:1}}>Cancel</Btn><Btn onClick={()=>lockChat(lModal)} style={{flex:1}}>Lock 🔒</Btn></div></Card></div>);
 if(ulModal)return(<div style={{position:"fixed",inset:0,background:T.bg,zIndex:10001,display:"flex",alignItems:"center",justifyContent:"center",padding:20,fontFamily:"'Poppins',sans-serif"}}><style>{CSS}</style><Card style={{padding:34,maxWidth:360,width:"100%",textAlign:"center",animation:"slideUp 0.3s ease"}}><div style={{width:72,height:72,borderRadius:22,background:T.grad,display:"flex",alignItems:"center",justifyContent:"center",fontSize:32,margin:"0 auto 16px",boxShadow:T.shadow}}>🔐</div><h3 style={{color:T.text,fontWeight:800,fontSize:20,marginBottom:6}}>Chat Locked</h3><p style={{color:T.muted,fontSize:13,marginBottom:20}}>Enter PIN to unlock</p><Inp value={ulPin} onChange={e=>setUlPin(e.target.value.replace(/\D/g,""))} placeholder="• • • •" type="password" style={{fontSize:24,textAlign:"center",letterSpacing:12,marginBottom:8}} onKeyDown={e=>e.key==="Enter"&&unlockChat(ulModal)} />{lErr&&<div style={{color:"#EF4444",fontSize:13,marginBottom:10,padding:"7px",background:"rgba(239,68,68,0.08)",borderRadius:9}}>{lErr}</div>}<div style={{display:"flex",gap:10,marginTop:10}}><Btn onClick={()=>{setUlModal(null);setUlPin("");setLErr("");}} v="g" style={{flex:1}}>Cancel</Btn><Btn onClick={()=>unlockChat(ulModal)} style={{flex:1}}>Unlock →</Btn></div></Card></div>);
@@ -564,12 +356,7 @@ return(
 <style>{CSS}</style>
 
 <div style={{position:"fixed",top:12,left:"50%",transform:"translateX(-50%)",zIndex:9999,display:"flex",flexDirection:"column",gap:8,width:"92%",maxWidth:460,pointerEvents:"none"}}>
-{toasts.map(t=>(
-<div key={t.id} onClick={()=>{if(t.contact)openChat(t.contact);setToasts(p=>p.filter(x=>x.id!==t.id));}} style={{background:T.card,borderRadius:16,padding:"11px 15px",display:"flex",alignItems:"center",gap:11,boxShadow:"0 8px 32px rgba(0,0,0,0.5)",border:"1px solid "+T.border,animation:"slideDown 0.3s ease",cursor:"pointer",pointerEvents:"all"}}>
-<Av name={t.name} size={34} /><div style={{flex:1,overflow:"hidden"}}><div style={{fontWeight:700,fontSize:12,color:T.blue}}>{t.name}</div><div style={{fontSize:13,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",marginTop:1}}>{t.text}</div></div>
-<div onClick={e=>{e.stopPropagation();setToasts(p=>p.filter(x=>x.id!==t.id));}} style={{color:T.muted,fontSize:14,pointerEvents:"all",padding:3}}>✕</div>
-</div>
-))}
+{toasts.map(t=>(<div key={t.id} onClick={()=>{if(t.contact)openChat(t.contact);setToasts(p=>p.filter(x=>x.id!==t.id));}} style={{background:T.card,borderRadius:16,padding:"11px 15px",display:"flex",alignItems:"center",gap:11,boxShadow:"0 8px 32px rgba(0,0,0,0.5)",border:"1px solid "+T.border,animation:"slideDown 0.3s ease",cursor:"pointer",pointerEvents:"all"}}><Av name={t.name} size={34} /><div style={{flex:1,overflow:"hidden"}}><div style={{fontWeight:700,fontSize:12,color:T.blue}}>{t.name}</div><div style={{fontSize:13,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",marginTop:1}}>{t.text}</div></div><div onClick={e=>{e.stopPropagation();setToasts(p=>p.filter(x=>x.id!==t.id));}} style={{color:T.muted,fontSize:14,pointerEvents:"all",padding:3}}>✕</div></div>))}
 </div>
 
 {previewImg&&<div onClick={()=>setPreviewImg(null)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.97)",zIndex:9998,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:14,animation:"fadeIn 0.2s ease"}}><img src={previewImg} alt="p" style={{maxWidth:"95vw",maxHeight:"82vh",borderRadius:18}} /><div style={{display:"flex",gap:12}}><a href={previewImg} download style={{padding:"10px 22px",background:T.grad,borderRadius:14,color:"#fff",fontWeight:700,fontSize:13,textDecoration:"none",boxShadow:T.shadow}}>⬇ Download</a><div onClick={()=>setPreviewImg(null)} style={{padding:"10px 22px",background:T.card,borderRadius:14,color:T.text,fontWeight:700,fontSize:13,cursor:"pointer",border:"1px solid "+T.border}}>Close ✕</div></div></div>}
@@ -577,46 +364,14 @@ return(
 {showInvite&&<Modal onClose={()=>setShowInvite(false)}><Card style={{padding:30,textAlign:"center"}}><div style={{width:66,height:66,borderRadius:20,background:T.grad,display:"flex",alignItems:"center",justifyContent:"center",fontSize:28,margin:"0 auto 14px",boxShadow:T.shadow}}>🔗</div><h3 style={{color:T.text,fontWeight:800,fontSize:19,marginBottom:8,fontFamily:"'Poppins',sans-serif"}}>Invite Friends</h3><div style={{background:T.card2,borderRadius:12,padding:"11px 14px",fontSize:11,color:T.blue,wordBreak:"break-all",marginBottom:18,border:"1px solid "+T.border,lineHeight:1.6}}>{invL}</div><Btn onClick={copyLink} style={{marginBottom:10}}>{copied?"✅ Copied!":"📋 Copy Link"}</Btn><div onClick={()=>setShowInvite(false)} style={{padding:"10px",color:T.muted,cursor:"pointer",fontSize:13}}>Close</div></Card></Modal>}
 {policy&&<Modal onClose={()=>setPolicy(null)}><Card style={{padding:26,maxHeight:"75vh",overflowY:"auto"}}><div style={{fontWeight:800,fontSize:17,color:T.text,marginBottom:12}}>{policy==="privacy"?"🔒 Privacy":"📋 Terms"}</div><div style={{color:T.mutedL,fontSize:13,lineHeight:1.9}}>{policy==="privacy"?<><p>Independent platform.</p><p><strong style={{color:T.text}}>Data:</strong> Email, name, photo, messages.</p></>:<><p>Lawful use only.</p><p>Not affiliated with WhatsApp or Meta.</p></>}</div><Btn onClick={()=>setPolicy(null)} style={{marginTop:16}}>Close</Btn></Card></Modal>}
 
-{showStarred&&<Modal onClose={()=>setShowStarred(false)}>
-<Card style={{padding:0,maxHeight:"80vh",overflow:"hidden",display:"flex",flexDirection:"column"}}>
-<div style={{padding:"18px 20px",borderBottom:"1px solid "+T.border,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-<div style={{fontWeight:800,fontSize:17,color:T.text}}>⭐ Starred Messages</div>
-<div onClick={()=>setShowStarred(false)} style={{color:T.muted,cursor:"pointer",fontSize:20}}>✕</div>
-</div>
-<div style={{flex:1,overflowY:"auto",padding:14}}>
-{starredList.length===0?<div style={{textAlign:"center",padding:40,color:T.muted}}><div style={{fontSize:44,marginBottom:10}}>⭐</div><div style={{fontWeight:700,fontSize:14,color:T.text}}>No starred messages</div><div style={{fontSize:12,marginTop:6}}>Long press a message → ⭐ Star</div></div>:starredList.map((s,i)=>(
-<div key={i} style={{padding:"12px 14px",background:T.card2,borderRadius:14,marginBottom:8,border:"1px solid "+T.border}}>
-<div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
-<div style={{width:24,height:24,borderRadius:8,background:cfn(s.chatName),display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:800,color:"#fff",flexShrink:0}}>{gi(s.chatName)}</div>
-<div style={{fontSize:11,color:T.blue,fontWeight:700}}>{s.chatName}</div>
-<div style={{fontSize:10,color:T.muted,marginLeft:"auto"}}>{tAgo(s.timestamp)}</div>
-</div>
-<div style={{fontSize:13,color:T.text,fontWeight:500}}>{s.text||"📷 Photo"}</div>
-<div style={{fontSize:10,color:T.muted,marginTop:4}}>From: {s.senderName}</div>
-</div>
-))}
-</div>
-</Card>
-</Modal>}
+{showStarred&&<Modal onClose={()=>setShowStarred(false)}><Card style={{padding:0,maxHeight:"80vh",overflow:"hidden",display:"flex",flexDirection:"column"}}><div style={{padding:"18px 20px",borderBottom:"1px solid "+T.border,display:"flex",alignItems:"center",justifyContent:"space-between"}}><div style={{fontWeight:800,fontSize:17,color:T.text}}>⭐ Starred Messages</div><div onClick={()=>setShowStarred(false)} style={{color:T.muted,cursor:"pointer",fontSize:20}}>✕</div></div><div style={{flex:1,overflowY:"auto",padding:14}}>{starredList.length===0?<div style={{textAlign:"center",padding:40,color:T.muted}}><div style={{fontSize:44,marginBottom:10}}>⭐</div><div style={{fontWeight:700,fontSize:14,color:T.text}}>No starred messages</div><div style={{fontSize:12,marginTop:6}}>Long press a message → ⭐ Star</div></div>:starredList.map((s,i)=>(<div key={i} style={{padding:"12px 14px",background:T.card2,borderRadius:14,marginBottom:8,border:"1px solid "+T.border}}><div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}><div style={{width:24,height:24,borderRadius:8,background:cfn(s.chatName),display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:800,color:"#fff",flexShrink:0}}>{gi(s.chatName)}</div><div style={{fontSize:11,color:T.blue,fontWeight:700}}>{s.chatName}</div><div style={{fontSize:10,color:T.muted,marginLeft:"auto"}}>{tAgo(s.timestamp)}</div></div><div style={{fontSize:13,color:T.text,fontWeight:500}}>{s.text||"📷 Photo"}</div><div style={{fontSize:10,color:T.muted,marginTop:4}}>From: {s.senderName}</div></div>))}</div></Card></Modal>}
 
-{showDisappear&&activeChat&&<Modal onClose={()=>setShowDisappear(false)}>
-<Card style={{padding:24}}>
-<div style={{fontWeight:800,fontSize:17,color:T.text,marginBottom:6}}>⏱️ Disappearing Messages</div>
-<div style={{fontSize:12,color:T.muted,marginBottom:18}}>Messages will auto-delete after selected time</div>
-{DISAPPEAR_OPTS.map(opt=>(
-<div key={opt.val} onClick={()=>setDisappearTime(activeChat.chatId,opt.val)} style={{padding:"13px 16px",background:curDisappear===opt.val?T.grad:T.card2,borderRadius:13,marginBottom:8,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"space-between",border:"1.5px solid "+(curDisappear===opt.val?T.blue:T.border),transition:"all 0.2s"}}>
-<span style={{fontWeight:700,fontSize:14,color:"#fff"}}>{opt.label}</span>
-{curDisappear===opt.val&&<span style={{color:"#fff",fontSize:16}}>✓</span>}
-</div>
-))}
-<Btn onClick={()=>setShowDisappear(false)} v="g" style={{marginTop:6}}>Cancel</Btn>
-</Card>
-</Modal>}
+{showDisappear&&activeChat&&<Modal onClose={()=>setShowDisappear(false)}><Card style={{padding:24}}><div style={{fontWeight:800,fontSize:17,color:T.text,marginBottom:6}}>⏱️ Disappearing Messages</div><div style={{fontSize:12,color:T.muted,marginBottom:18}}>Messages will auto-delete after selected time</div>{DISAPPEAR_OPTS.map(opt=>(<div key={opt.val} onClick={()=>setDisappearTime(activeChat.chatId,opt.val)} style={{padding:"13px 16px",background:curDisappear===opt.val?T.grad:T.card2,borderRadius:13,marginBottom:8,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"space-between",border:"1.5px solid "+(curDisappear===opt.val?T.blue:T.border),transition:"all 0.2s"}}><span style={{fontWeight:700,fontSize:14,color:"#fff"}}>{opt.label}</span>{curDisappear===opt.val&&<span style={{color:"#fff",fontSize:16}}>✓</span>}</div>))}<Btn onClick={()=>setShowDisappear(false)} v="g" style={{marginTop:6}}>Cancel</Btn></Card></Modal>}
 
 {nav==="chat"&&activeChat?(
 <div style={{display:"flex",flexDirection:"column",height:"100%",background:T.bg}}>
 <div style={{display:"flex",alignItems:"center",padding:"12px 14px",background:T.card,gap:11,borderBottom:"1px solid "+T.border,boxShadow:"0 2px 14px rgba(0,0,0,0.3)",flexShrink:0,zIndex:10}}>
-<div onClick={()=>{setNav("home");setShowEmoji(false);setMsgMenu(null);setReplyTo(null);}} style={{width:36,height:36,borderRadius:11,background:T.card2,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:16,border:"1px solid "+T.border,flexShrink:0}}>←</div>
+<div onClick={()=>{setNav("home");setShowEmoji(false);setMsgMenu(null);setReactMenu(null);setReplyTo(null);}} style={{width:36,height:36,borderRadius:11,background:T.card2,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:16,border:"1px solid "+T.border,flexShrink:0}}>←</div>
 <div onClick={()=>loadContactProfile(activeChat)} style={{width:42,height:42,borderRadius:14,background:cfn(activeChat.name),display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:16,color:"#fff",flexShrink:0,boxShadow:T.shadow,cursor:"pointer"}}>{gi(activeChat.name)}</div>
 <div style={{flex:1,overflow:"hidden",cursor:"pointer"}} onClick={()=>loadContactProfile(activeChat)}>
 <div style={{fontWeight:800,fontSize:15,color:T.text,fontFamily:"'Poppins',sans-serif",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{activeChat.name}</div>
@@ -626,14 +381,14 @@ return(
 </div>
 </div>
 <div style={{display:"flex",gap:5,flexShrink:0}}>
-<div onClick={()=>setShowStarred(true)} style={{width:32,height:32,borderRadius:10,background:T.card2,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:14,border:"1px solid "+T.border}}>⭐</div>
-<div onClick={()=>setShowDisappear(true)} style={{width:32,height:32,borderRadius:10,background:curDisappear>0?T.grad:T.card2,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:14,border:"1px solid "+T.border}}>⏱️</div>
-<div onClick={()=>startCall("audio")} style={{width:32,height:32,borderRadius:10,background:T.card2,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:14,border:"1px solid "+T.border}}>📞</div>
-<div onClick={()=>startCall("video")} style={{width:32,height:32,borderRadius:10,background:T.card2,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:14,border:"1px solid "+T.border}}>📹</div>
+<div onClick={()=>setShowStarred(true)} style={{width:32,height:32,borderRadius:10,background:T.card2,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:13,border:"1px solid "+T.border}}>⭐</div>
+<div onClick={()=>setShowDisappear(true)} style={{width:32,height:32,borderRadius:10,background:curDisappear>0?T.grad:T.card2,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:13,border:"1px solid "+T.border}}>⏱️</div>
+<div onClick={()=>startCall("audio")} style={{width:32,height:32,borderRadius:10,background:T.card2,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:13,border:"1px solid "+T.border}}>📞</div>
+<div onClick={()=>startCall("video")} style={{width:32,height:32,borderRadius:10,background:T.card2,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:13,border:"1px solid "+T.border}}>📹</div>
 </div>
 </div>
 
-<div style={{flex:1,overflowY:"auto",padding:"14px 12px",display:"flex",flexDirection:"column",gap:2,position:"relative",...bgStyle()}} onClick={()=>{setMsgMenu(null);setShowEmoji(false);}}>
+<div style={{flex:1,overflowY:"auto",padding:"14px 12px",display:"flex",flexDirection:"column",gap:2,position:"relative",...bgStyle()}} onClick={()=>{setMsgMenu(null);setShowEmoji(false);setReactMenu(null);}}>
 {msgs.length===0&&<div style={{textAlign:"center",margin:"auto",color:T.muted,padding:40}}><div style={{fontSize:54,marginBottom:14,opacity:0.3}}>👋</div><div style={{fontSize:16,fontWeight:700,color:T.text,fontFamily:"'Poppins',sans-serif"}}>Say hello!</div><div style={{fontSize:12,marginTop:8}}>Start chatting with <strong style={{color:T.blue}}>{activeChat.name}</strong></div></div>}
 {msgs.map((msg,i)=>{
 if(msg.deletedFor?.[user.uid])return null;
@@ -645,13 +400,16 @@ const msgKeys=Object.keys(msgs);
 const msgKey=msgKeys[i]||String(i);
 const showDay=isNewDay(msgs,i);
 const isStarred=starred[activeChat.chatId+"_"+msgKey];
+const msgReacts=getMsgReactions(msgKey);
+const myReact=getMyReaction(msgKey);
+const hasReacts=Object.keys(msgReacts).length>0;
 return(
 <div key={i}>
 {showDay&&<div style={{textAlign:"center",margin:"10px 0 6px"}}><span style={{fontSize:11,color:T.mutedL,fontWeight:600,background:T.card2,padding:"4px 14px",borderRadius:20,border:"1px solid "+T.border}}>{dayLbl(msg.timestamp)}</span></div>}
-<div style={{display:"flex",justifyContent:isMine?"flex-end":"flex-start",marginBottom:showAv?5:1,animation:"msgIn 0.2s ease",position:"relative"}} onContextMenu={e=>{e.preventDefault();if(!isDeleted)setMsgMenu({id:i,msgId:msgKey,isMine,text:msg.text,x:e.clientX,y:e.clientY,msg});}}>
+<div style={{display:"flex",justifyContent:isMine?"flex-end":"flex-start",marginBottom:hasReacts?12:(showAv?5:1),animation:"msgIn 0.2s ease",position:"relative"}} onContextMenu={e=>{e.preventDefault();if(!isDeleted){setMsgMenu(null);setReactMenu({msgKey,isMine,msg,x:e.clientX,y:e.clientY});}}}>
 {!isMine&&<div style={{width:28,height:28,marginRight:7,flexShrink:0,alignSelf:"flex-end",marginBottom:2}}>{showAv&&<div style={{width:28,height:28,borderRadius:9,background:cfn(msg.senderName),display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:9,color:"#fff"}}>{gi(msg.senderName)}</div>}</div>}
-<div style={{maxWidth:"75%",display:"flex",flexDirection:"column",alignItems:isMine?"flex-end":"flex-start"}}>
-{isStarred&&!isDeleted&&<div style={{fontSize:10,color:"#F59E0B",marginBottom:2,paddingRight:isMine?0:4,paddingLeft:isMine?4:0,animation:"starPop 0.3s ease"}}>⭐</div>}
+<div style={{maxWidth:"75%",display:"flex",flexDirection:"column",alignItems:isMine?"flex-end":"flex-start",position:"relative"}}>
+{isStarred&&!isDeleted&&<div style={{fontSize:10,color:"#F59E0B",marginBottom:2,paddingRight:isMine?0:4}}>⭐</div>}
 {msg.replyTo&&!isDeleted&&<div style={{padding:"6px 12px",background:isMine?"rgba(255,255,255,0.08)":"rgba(79,142,247,0.08)",borderRadius:"12px 12px 0 0",marginBottom:-2,borderLeft:"3px solid "+T.blue,maxWidth:"100%",overflow:"hidden"}}><div style={{fontSize:10,color:T.blue,fontWeight:700,marginBottom:1}}>{msg.replyTo.senderName}</div><div style={{fontSize:11,color:T.mutedL,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{msg.replyTo.text}</div></div>}
 <div style={{padding:msg.image?"6px 6px 8px":(isDeleted?"10px 14px 8px":"11px 15px 9px"),background:isDeleted?"transparent":(isMine?T.gradS:T.card2),borderRadius:isMine?"20px 20px 5px 20px":"20px 20px 20px 5px",boxShadow:isDeleted?"none":(isMine?"0 3px 14px rgba(30,58,138,0.45)":"0 2px 10px rgba(0,0,0,0.3)"),border:isDeleted?"1px dashed "+T.border:(isMine?"none":"1px solid "+T.border),cursor:"context-menu"}}>
 {!isMine&&showAv&&!isDeleted&&<div style={{fontSize:10,color:cfn(msg.senderName),fontWeight:700,marginBottom:4}}>{msg.senderName}</div>}
@@ -661,6 +419,16 @@ return(
 </>}
 {!msg.image&&!isDeleted&&<div style={{display:"flex",justifyContent:"flex-end",alignItems:"center",gap:3,marginTop:4}}><span style={{fontSize:10,color:isMine?"rgba(255,255,255,0.4)":T.muted}}>{ft(msg.timestamp)}</span>{isMine&&<span style={{fontSize:12,color:isLast?"#60A5FA":"rgba(255,255,255,0.45)"}}>✓✓</span>}</div>}
 </div>
+{hasReacts&&!isDeleted&&(
+<div style={{display:"flex",gap:3,marginTop:4,flexWrap:"wrap",justifyContent:isMine?"flex-end":"flex-start"}}>
+{Object.entries(msgReacts).map(([emoji,count])=>(
+<div key={emoji} onClick={()=>addReaction(msgKey,emoji)} style={{display:"flex",alignItems:"center",gap:3,padding:"3px 8px",background:myReact===emoji?T.grad:T.card,borderRadius:12,cursor:"pointer",border:"1px solid "+(myReact===emoji?T.blue:T.border),animation:"reactPop 0.3s ease",boxShadow:myReact===emoji?T.shadow:"none",transition:"all 0.2s"}}>
+<span style={{fontSize:14}}>{emoji}</span>
+{count>1&&<span style={{fontSize:11,fontWeight:700,color:myReact===emoji?"#fff":T.mutedL}}>{count}</span>}
+</div>
+))}
+</div>
+)}
 </div>
 </div>
 </div>
@@ -670,17 +438,20 @@ return(
 <div ref={endRef} />
 </div>
 
-{msgMenu&&<div ref={msgMenuRef} style={{position:"fixed",top:Math.min(msgMenu.y||300,window.innerHeight-260),left:Math.min(Math.max((msgMenu.x||100)-85,8),window.innerWidth-180),background:T.card,borderRadius:16,padding:6,border:"1px solid "+T.border,boxShadow:"0 8px 32px rgba(0,0,0,0.6)",zIndex:500,minWidth:180,animation:"slideUp 0.2s ease"}}>
-{[
-["⭐ "+(starred[activeChat.chatId+"_"+msgMenu.msgId]?"Unstar":"Star"),()=>{toggleStar(msgMenu.msgId,msgMenu.msg);setMsgMenu(null);}],
-["↩️ Reply",()=>{setReplyTo({text:msgMenu.msg?.text||"Photo",senderName:msgMenu.msg?.senderName||""});setMsgMenu(null);}],
-...(msgMenu.msg?.text?[["📋 Copy",()=>copyMsg(msgMenu.msg.text)]]:[]),
-...(msgMenu.isMine?[["🗑️ Delete for me",()=>deleteMsg(msgMenu.msgId,false)],["🚫 Delete for all",()=>deleteMsg(msgMenu.msgId,true)]]:[["🗑️ Delete for me",()=>deleteMsg(msgMenu.msgId,false)]]),
-["✕ Cancel",()=>setMsgMenu(null)]
-].map(([label,fn])=>(
-<div key={label} onClick={fn} style={{padding:"11px 16px",borderRadius:11,cursor:"pointer",fontSize:13,fontWeight:600,color:(label.includes("Delete")||label.includes("🚫"))?"#EF4444":label.includes("⭐")?"#F59E0B":T.text,transition:"background 0.15s"}} onMouseEnter={e=>e.currentTarget.style.background=T.card2} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>{label}</div>
+{reactMenu&&(
+<div ref={reactMenuRef} style={{position:"fixed",top:Math.min((reactMenu.y||300)-70,window.innerHeight-130),left:Math.min(Math.max((reactMenu.x||100)-120,8),window.innerWidth-270),background:T.card,borderRadius:20,padding:"10px 12px",border:"1px solid "+T.border,boxShadow:"0 8px 32px rgba(0,0,0,0.7)",zIndex:600,animation:"reactBarIn 0.2s ease"}}>
+<div style={{display:"flex",gap:6,marginBottom:8}}>
+{REACT_EMOJIS.map(emoji=>(
+<div key={emoji} onClick={()=>addReaction(reactMenu.msgKey,emoji)} style={{width:38,height:38,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,cursor:"pointer",borderRadius:12,background:getMyReaction(reactMenu.msgKey)===emoji?T.grad:"transparent",transition:"all 0.15s",transform:"scale(1)"}} onMouseEnter={e=>{e.currentTarget.style.transform="scale(1.25)";e.currentTarget.style.background=T.card2;}} onMouseLeave={e=>{e.currentTarget.style.transform="scale(1)";e.currentTarget.style.background=getMyReaction(reactMenu.msgKey)===emoji?T.grad:"transparent";}}>{emoji}</div>
 ))}
-</div>}
+</div>
+<div style={{display:"flex",gap:5,borderTop:"1px solid "+T.border,paddingTop:8}}>
+{[["↩️ Reply",()=>{setReplyTo({text:reactMenu.msg?.text||"Photo",senderName:reactMenu.msg?.senderName||""});setReactMenu(null);}],["⭐ Star",()=>{toggleStar(reactMenu.msgKey,reactMenu.msg);setReactMenu(null);}],...(reactMenu.msg?.text?[["📋 Copy",()=>{copyMsg(reactMenu.msg.text);setReactMenu(null);}]]:[]),...(reactMenu.isMine?[["🗑️",()=>{deleteMsg(reactMenu.msgKey,false);setReactMenu(null);}]]:[])].map(([label,fn])=>(
+<div key={label} onClick={fn} style={{padding:"6px 10px",borderRadius:10,cursor:"pointer",fontSize:11,fontWeight:600,color:label.includes("🗑️")?"#EF4444":T.text,background:T.card2,transition:"background 0.15s",whiteSpace:"nowrap"}} onMouseEnter={e=>e.currentTarget.style.background=T.card3} onMouseLeave={e=>e.currentTarget.style.background=T.card2}>{label}</div>
+))}
+</div>
+</div>
+)}
 
 {replyTo&&<div style={{padding:"9px 14px",background:T.card2,borderBottom:"1px solid "+T.border,display:"flex",alignItems:"center",gap:10,animation:"slideDown 0.2s ease",flexShrink:0}}><div style={{flex:1,borderLeft:"3px solid "+T.blue,paddingLeft:10}}><div style={{fontSize:11,color:T.blue,fontWeight:700,marginBottom:2}}>{replyTo.senderName}</div><div style={{fontSize:12,color:T.mutedL,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{replyTo.text}</div></div><div onClick={()=>setReplyTo(null)} style={{color:T.muted,cursor:"pointer",fontSize:18,padding:4}}>✕</div></div>}
 
@@ -764,12 +535,7 @@ return(
 {!searchQ&&recentAct.length>0&&<div style={{padding:"10px 14px 0"}}>
 <div style={{fontSize:9,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:1.5,marginBottom:8}}>Recent</div>
 <div style={{display:"flex",gap:10,overflowX:"auto",paddingBottom:8}}>
-{recentAct.map(c=>(
-<div key={c.chatId} onClick={()=>handleChatClick(c)} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:4,cursor:"pointer",flexShrink:0}}>
-<div style={{position:"relative"}}><div style={{width:48,height:48,borderRadius:16,background:cfn(c.name),display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:16,color:"#fff"}}>{gi(c.name)}</div>{(unread[c.chatId]||0)>0&&<div style={{position:"absolute",top:-3,right:-3,width:16,height:16,background:T.gradD,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:8,fontWeight:800,color:"#fff",animation:"badgePop 0.3s ease"}}>{(unread[c.chatId]||0)>9?"9+":unread[c.chatId]}</div>}</div>
-<div style={{fontSize:10,color:T.mutedL,fontWeight:600,maxWidth:52,textAlign:"center",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.name.split(" ")[0]}</div>
-</div>
-))}
+{recentAct.map(c=>(<div key={c.chatId} onClick={()=>handleChatClick(c)} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:4,cursor:"pointer",flexShrink:0}}><div style={{position:"relative"}}><div style={{width:48,height:48,borderRadius:16,background:cfn(c.name),display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:16,color:"#fff"}}>{gi(c.name)}</div>{(unread[c.chatId]||0)>0&&<div style={{position:"absolute",top:-3,right:-3,width:16,height:16,background:T.gradD,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:8,fontWeight:800,color:"#fff",animation:"badgePop 0.3s ease"}}>{(unread[c.chatId]||0)>9?"9+":unread[c.chatId]}</div>}</div><div style={{fontSize:10,color:T.mutedL,fontWeight:600,maxWidth:52,textAlign:"center",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.name.split(" ")[0]}</div></div>))}
 </div>
 </div>}
 {filtC.map(([chatId,contact],idx)=>(
@@ -786,75 +552,25 @@ return(
 {(unread[chatId]||0)>0&&<div onClick={()=>handleChatClick(contact)} style={{minWidth:19,height:19,background:T.grad,borderRadius:10,display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:800,color:"#fff",flexShrink:0,padding:"0 4px",boxShadow:T.shadow,animation:"badgePop 0.3s ease"}}>{(unread[chatId]||0)>9?"9+":unread[chatId]}</div>}
 </div>
 ))}
-{lkC.length>0&&<div>
-<div onClick={()=>setShowLocked(p=>!p)} style={{display:"flex",alignItems:"center",padding:"11px 16px",cursor:"pointer",background:T.card2,borderBottom:"1px solid "+T.border,gap:10}}><div style={{width:38,height:38,borderRadius:12,background:"rgba(239,68,68,0.07)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,border:"1px solid rgba(239,68,68,0.12)"}}>🔒</div><span style={{fontWeight:700,fontSize:13,color:T.muted,flex:1}}>Locked Chats ({lkC.length})</span><span style={{color:T.muted,fontSize:12}}>{showLocked?"▲":"▼"}</span></div>
-{showLocked&&lkC.map(([chatId],idx)=>(
-<div key={chatId} onClick={()=>handleChatClick(contacts[chatId])} style={{display:"flex",alignItems:"center",padding:"12px 16px",cursor:"pointer",gap:12,background:T.bg,borderBottom:"1px solid "+T.border,animation:"slideUp 0.2s "+(idx*0.04)+"s ease both"}}>
-<div style={{width:50,height:50,borderRadius:17,background:T.card2,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,border:"1px solid "+T.border}}>🔒</div>
-<div style={{flex:1}}><div style={{fontWeight:700,fontSize:14,color:T.muted}}>••••••••</div><div style={{fontSize:12,color:T.muted,marginTop:2}}>Tap to unlock</div></div>
-</div>
-))}
-</div>}
+{lkC.length>0&&<div><div onClick={()=>setShowLocked(p=>!p)} style={{display:"flex",alignItems:"center",padding:"11px 16px",cursor:"pointer",background:T.card2,borderBottom:"1px solid "+T.border,gap:10}}><div style={{width:38,height:38,borderRadius:12,background:"rgba(239,68,68,0.07)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,border:"1px solid rgba(239,68,68,0.12)"}}>🔒</div><span style={{fontWeight:700,fontSize:13,color:T.muted,flex:1}}>Locked Chats ({lkC.length})</span><span style={{color:T.muted,fontSize:12}}>{showLocked?"▲":"▼"}</span></div>{showLocked&&lkC.map(([chatId],idx)=>(<div key={chatId} onClick={()=>handleChatClick(contacts[chatId])} style={{display:"flex",alignItems:"center",padding:"12px 16px",cursor:"pointer",gap:12,background:T.bg,borderBottom:"1px solid "+T.border,animation:"slideUp 0.2s "+(idx*0.04)+"s ease both"}}><div style={{width:50,height:50,borderRadius:17,background:T.card2,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,border:"1px solid "+T.border}}>🔒</div><div style={{flex:1}}><div style={{fontWeight:700,fontSize:14,color:T.muted}}>••••••••</div><div style={{fontSize:12,color:T.muted,marginTop:2}}>Tap to unlock</div></div></div>))}</div>}
 {searchQ&&filtC.length===0&&<div style={{padding:46,textAlign:"center",color:T.muted}}><div style={{fontSize:44,marginBottom:10,opacity:0.25}}>🔍</div><div style={{fontWeight:700,fontSize:13,color:T.text}}>No results</div></div>}
 </div>
 )}
 </div>}
 
-{view==="updates"&&<div style={{animation:"fadeIn 0.25s ease"}}>
-<div style={{padding:"12px 14px",borderBottom:"1px solid "+T.border}}>
-<div onClick={()=>setShowAddS(p=>!p)} style={{display:"flex",alignItems:"center",gap:12,cursor:"pointer",padding:"2px 0"}}>
-<div style={{width:52,height:52,borderRadius:17,background:myS.length>0?cfn(user?.displayName):T.card2,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:18,color:"#fff",border:myS.length>0?"2.5px solid "+T.blue:"2.5px dashed "+T.border,flexShrink:0,overflow:"hidden"}}>{pic?<img src={pic} alt="p" style={{width:52,height:52,objectFit:"cover"}} />:gi(user?.displayName)}</div>
-<div style={{flex:1}}><div style={{fontWeight:700,fontSize:14,color:T.text}}>My Update</div><div style={{fontSize:11,color:T.muted,marginTop:2}}>{myS.length>0?tAgo(myS[0].timestamp):"Share what's on your mind"}</div></div>
-<div style={{width:32,height:32,borderRadius:10,background:T.grad,display:"flex",alignItems:"center",justifyContent:"center",fontSize:17,color:"#fff",boxShadow:T.shadow,flexShrink:0}}>+</div>
-</div>
-{showAddS&&<div style={{marginTop:11,padding:13,background:T.card2,borderRadius:15,border:"1px solid "+T.border,animation:"slideDown 0.2s ease"}}>
-<Inp value={sText} onChange={e=>setSText(e.target.value)} placeholder="What's on your mind?" style={{marginBottom:9}} />
-<div style={{display:"flex",gap:7}}><Btn onClick={()=>postS()} style={{flex:1,padding:"10px",borderRadius:11,fontSize:12}}>Share ✓</Btn><Btn onClick={()=>sFRef.current?.click()} v="g" style={{padding:"10px 13px",borderRadius:11}}>📷</Btn><Btn onClick={()=>setShowAddS(false)} v="g" style={{padding:"10px 13px",borderRadius:11}}>✕</Btn></div>
-<input type="file" accept="image/*" ref={sFRef} onChange={handleSImg} style={{display:"none"}} />
-</div>}
-</div>
-{othS.length>0&&<div style={{padding:"7px 16px 4px",fontSize:9,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:1.5}}>Recent</div>}
-{othS.map((st,i)=>(
-<div key={i} onClick={()=>setViewS(st)} style={{display:"flex",alignItems:"center",padding:"12px 16px",gap:12,cursor:"pointer",borderBottom:"1px solid "+T.border,transition:"background 0.15s",animation:"slideUp 0.3s "+(i*0.05)+"s ease both"}} onMouseEnter={e=>e.currentTarget.style.background=T.card} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-<div style={{width:52,height:52,borderRadius:17,background:cfn(st.name),display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:18,color:"#fff",border:"2.5px solid "+T.blue,flexShrink:0}}>{gi(st.name)}</div>
-<div style={{flex:1}}><div style={{fontWeight:700,fontSize:14,color:T.text}}>{st.name}</div><div style={{fontSize:11,color:T.muted,marginTop:2}}>{tAgo(st.timestamp)}</div></div>
-{st.image&&<div style={{width:44,height:44,borderRadius:12,overflow:"hidden",flexShrink:0}}><img src={st.image} alt="s" style={{width:"100%",height:"100%",objectFit:"cover"}} /></div>}
-</div>
-))}
-{statuses.length===0&&<div style={{padding:50,textAlign:"center",color:T.muted}}><div style={{fontSize:50,marginBottom:12,opacity:0.25}}>✨</div><div style={{fontWeight:700,fontSize:14,color:T.text}}>No updates yet</div></div>}
-</div>}
+{view==="updates"&&<div style={{animation:"fadeIn 0.25s ease"}}><div style={{padding:"12px 14px",borderBottom:"1px solid "+T.border}}><div onClick={()=>setShowAddS(p=>!p)} style={{display:"flex",alignItems:"center",gap:12,cursor:"pointer",padding:"2px 0"}}><div style={{width:52,height:52,borderRadius:17,background:myS.length>0?cfn(user?.displayName):T.card2,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:18,color:"#fff",border:myS.length>0?"2.5px solid "+T.blue:"2.5px dashed "+T.border,flexShrink:0,overflow:"hidden"}}>{pic?<img src={pic} alt="p" style={{width:52,height:52,objectFit:"cover"}} />:gi(user?.displayName)}</div><div style={{flex:1}}><div style={{fontWeight:700,fontSize:14,color:T.text}}>My Update</div><div style={{fontSize:11,color:T.muted,marginTop:2}}>{myS.length>0?tAgo(myS[0].timestamp):"Share what's on your mind"}</div></div><div style={{width:32,height:32,borderRadius:10,background:T.grad,display:"flex",alignItems:"center",justifyContent:"center",fontSize:17,color:"#fff",boxShadow:T.shadow,flexShrink:0}}>+</div></div>{showAddS&&<div style={{marginTop:11,padding:13,background:T.card2,borderRadius:15,border:"1px solid "+T.border,animation:"slideDown 0.2s ease"}}><Inp value={sText} onChange={e=>setSText(e.target.value)} placeholder="What's on your mind?" style={{marginBottom:9}} /><div style={{display:"flex",gap:7}}><Btn onClick={()=>postS()} style={{flex:1,padding:"10px",borderRadius:11,fontSize:12}}>Share ✓</Btn><Btn onClick={()=>sFRef.current?.click()} v="g" style={{padding:"10px 13px",borderRadius:11}}>📷</Btn><Btn onClick={()=>setShowAddS(false)} v="g" style={{padding:"10px 13px",borderRadius:11}}>✕</Btn></div><input type="file" accept="image/*" ref={sFRef} onChange={handleSImg} style={{display:"none"}} /></div>}</div>{othS.length>0&&<div style={{padding:"7px 16px 4px",fontSize:9,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:1.5}}>Recent</div>}{othS.map((st,i)=>(<div key={i} onClick={()=>setViewS(st)} style={{display:"flex",alignItems:"center",padding:"12px 16px",gap:12,cursor:"pointer",borderBottom:"1px solid "+T.border,transition:"background 0.15s",animation:"slideUp 0.3s "+(i*0.05)+"s ease both"}} onMouseEnter={e=>e.currentTarget.style.background=T.card} onMouseLeave={e=>e.currentTarget.style.background="transparent"}><div style={{width:52,height:52,borderRadius:17,background:cfn(st.name),display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:18,color:"#fff",border:"2.5px solid "+T.blue,flexShrink:0}}>{gi(st.name)}</div><div style={{flex:1}}><div style={{fontWeight:700,fontSize:14,color:T.text}}>{st.name}</div><div style={{fontSize:11,color:T.muted,marginTop:2}}>{tAgo(st.timestamp)}</div></div>{st.image&&<div style={{width:44,height:44,borderRadius:12,overflow:"hidden",flexShrink:0}}><img src={st.image} alt="s" style={{width:"100%",height:"100%",objectFit:"cover"}} /></div>}</div>))}{statuses.length===0&&<div style={{padding:50,textAlign:"center",color:T.muted}}><div style={{fontSize:50,marginBottom:12,opacity:0.25}}>✨</div><div style={{fontWeight:700,fontSize:14,color:T.text}}>No updates yet</div></div>}</div>}
 
-{view==="calls"&&<div style={{animation:"fadeIn 0.25s ease"}}>
-<div style={{display:"flex",padding:"2px 8px",background:T.card,borderBottom:"1px solid "+T.border,overflowX:"auto",gap:2}}>
-{["all","missed","incoming","outgoing"].map(f=>(
-<div key={f} onClick={()=>setCallF(f)} style={{padding:"9px 11px",cursor:"pointer",fontSize:10,fontWeight:700,whiteSpace:"nowrap",color:callF===f?T.blue:"rgba(74,85,104,0.65)",borderBottom:callF===f?"2.5px solid "+T.blue:"2.5px solid transparent",transition:"all 0.2s"}}>{f==="missed"?"📵 Missed":f==="incoming"?"📞 In":f==="outgoing"?"📲 Out":"All"}</div>
-))}
-</div>
-{filtCalls.length===0?<div style={{padding:50,textAlign:"center",color:T.muted}}><div style={{fontSize:50,marginBottom:12,opacity:0.25}}>📞</div><div style={{fontWeight:700,fontSize:14,color:T.text}}>No calls yet</div></div>
-:filtCalls.map((call,i)=>(
-<div key={i} style={{display:"flex",alignItems:"center",padding:"12px 16px",gap:12,borderBottom:"1px solid "+T.border,animation:"slideUp 0.3s "+(Math.min(i*0.04,0.3))+"s ease both"}}>
-<div style={{width:48,height:48,borderRadius:16,background:cfn(call.name),display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:16,color:"#fff",flexShrink:0}}>{gi(call.name)}</div>
-<div style={{flex:1}}><div style={{fontWeight:700,fontSize:14,color:T.text}}>{call.name}</div><div style={{fontSize:11,fontWeight:600,marginTop:2,color:call.status==="missed"?"#EF4444":call.direction==="incoming"?T.blue:T.purple}}>{call.status==="missed"?"📵 Missed":call.direction==="incoming"?"📞 In · "+call.type:"📲 Out · "+call.type}</div><div style={{fontSize:10,color:T.muted,marginTop:1}}>{new Date(call.timestamp).toLocaleString("en-US",{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"})}</div></div>
-{call.duration>0&&<div style={{fontSize:10,color:T.muted,flexShrink:0}}>⏱ {fD(call.duration)}</div>}
-</div>
-))}
-</div>}
+{view==="calls"&&<div style={{animation:"fadeIn 0.25s ease"}}><div style={{display:"flex",padding:"2px 8px",background:T.card,borderBottom:"1px solid "+T.border,overflowX:"auto",gap:2}}>{["all","missed","incoming","outgoing"].map(f=>(<div key={f} onClick={()=>setCallF(f)} style={{padding:"9px 11px",cursor:"pointer",fontSize:10,fontWeight:700,whiteSpace:"nowrap",color:callF===f?T.blue:"rgba(74,85,104,0.65)",borderBottom:callF===f?"2.5px solid "+T.blue:"2.5px solid transparent",transition:"all 0.2s"}}>{f==="missed"?"📵 Missed":f==="incoming"?"📞 In":f==="outgoing"?"📲 Out":"All"}</div>))}</div>{filtCalls.length===0?<div style={{padding:50,textAlign:"center",color:T.muted}}><div style={{fontSize:50,marginBottom:12,opacity:0.25}}>📞</div><div style={{fontWeight:700,fontSize:14,color:T.text}}>No calls yet</div></div>:filtCalls.map((call,i)=>(<div key={i} style={{display:"flex",alignItems:"center",padding:"12px 16px",gap:12,borderBottom:"1px solid "+T.border,animation:"slideUp 0.3s "+(Math.min(i*0.04,0.3))+"s ease both"}}><div style={{width:48,height:48,borderRadius:16,background:cfn(call.name),display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:16,color:"#fff",flexShrink:0}}>{gi(call.name)}</div><div style={{flex:1}}><div style={{fontWeight:700,fontSize:14,color:T.text}}>{call.name}</div><div style={{fontSize:11,fontWeight:600,marginTop:2,color:call.status==="missed"?"#EF4444":call.direction==="incoming"?T.blue:T.purple}}>{call.status==="missed"?"📵 Missed":call.direction==="incoming"?"📞 In · "+call.type:"📲 Out · "+call.type}</div><div style={{fontSize:10,color:T.muted,marginTop:1}}>{new Date(call.timestamp).toLocaleString("en-US",{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"})}</div></div>{call.duration>0&&<div style={{fontSize:10,color:T.muted,flexShrink:0}}>⏱ {fD(call.duration)}</div>}</div>))}</div>}
 </div>
 
 <div style={{position:"absolute",bottom:0,left:0,right:0,display:"flex",background:T.card,borderTop:"1px solid "+T.border,zIndex:50,boxShadow:"0 -4px 20px rgba(0,0,0,0.3)"}}>
 {[["home","🏠","Home",()=>{setView("messages");setShowNew(false);}],["compose","✏️","New",()=>{setView("messages");setShowNew(true);}],["updates","✨","Updates",()=>setView("updates")],["settings","⚙️","Settings",()=>setShowSett(true)]].map(([id,icon,label,fn])=>{
 const isActive=(id==="home"&&view==="messages"&&!showNew&&!showSett)||(id==="compose"&&showNew)||(id==="updates"&&view==="updates")||(id==="settings"&&showSett);
-return(
-<div key={id} onClick={fn} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",padding:"9px 4px 10px",cursor:"pointer",position:"relative",transition:"all 0.2s",minWidth:0}} onMouseDown={e=>e.currentTarget.style.opacity="0.65"} onMouseUp={e=>e.currentTarget.style.opacity="1"} onMouseLeave={e=>e.currentTarget.style.opacity="1"}>
-<div style={{width:36,height:36,borderRadius:12,background:isActive?T.grad:"transparent",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,marginBottom:3,transition:"all 0.25s",boxShadow:isActive?T.shadow:"none",flexShrink:0}}>{icon}</div>
-<span style={{fontSize:8,fontWeight:700,color:isActive?T.blue:T.muted,letterSpacing:0.3,fontFamily:"'Poppins',sans-serif",textTransform:"uppercase",whiteSpace:"nowrap"}}>{label}</span>
-{id==="home"&&totalUnread>0&&<div style={{position:"absolute",top:7,right:"14%",background:T.gradD,borderRadius:10,minWidth:15,height:15,display:"flex",alignItems:"center",justifyContent:"center",fontSize:7,fontWeight:800,color:"#fff",padding:"0 3px",animation:"badgePop 0.3s ease"}}>{totalUnread>9?"9+":totalUnread}</div>}
-</div>
-);
+return(<div key={id} onClick={fn} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",padding:"9px 4px 10px",cursor:"pointer",position:"relative",transition:"all 0.2s",minWidth:0}} onMouseDown={e=>e.currentTarget.style.opacity="0.65"} onMouseUp={e=>e.currentTarget.style.opacity="1"} onMouseLeave={e=>e.currentTarget.style.opacity="1"}><div style={{width:36,height:36,borderRadius:12,background:isActive?T.grad:"transparent",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,marginBottom:3,transition:"all 0.25s",boxShadow:isActive?T.shadow:"none",flexShrink:0}}>{icon}</div><span style={{fontSize:8,fontWeight:700,color:isActive?T.blue:T.muted,letterSpacing:0.3,fontFamily:"'Poppins',sans-serif",textTransform:"uppercase",whiteSpace:"nowrap"}}>{label}</span>{id==="home"&&totalUnread>0&&<div style={{position:"absolute",top:7,right:"14%",background:T.gradD,borderRadius:10,minWidth:15,height:15,display:"flex",alignItems:"center",justifyContent:"center",fontSize:7,fontWeight:800,color:"#fff",padding:"0 3px",animation:"badgePop 0.3s ease"}}>{totalUnread>9?"9+":totalUnread}</div>}</div>);
 })}
 </div>
 
-{view==="messages"&&!showNew&&<div onClick={()=>setShowNew(true)} style={{position:"absolute",bottom:76,right:16,width:50,height:50,borderRadius:16,background:T.grad,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:20,boxShadow:T.shadowL,transition:"all 0.2s",zIndex:49}} onMouseDown={e=>e.currentTarget.style.transform="scale(0.92)"} onMouseUp={e=>e.currentTarget.style.transform="scale(1)"} onMouseLeave={e=>e.currentTarget.style.transform="scale(1)"}> ✏️</div>}
+{view==="messages"&&!showNew&&<div onClick={()=>setShowNew(true)} style={{position:"absolute",bottom:76,right:16,width:50,height:50,borderRadius:16,background:T.grad,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:20,boxShadow:T.shadowL,transition:"all 0.2s",zIndex:49}} onMouseDown={e=>e.currentTarget.style.transform="scale(0.92)"} onMouseUp={e=>e.currentTarget.style.transform="scale(1)"} onMouseLeave={e=>e.currentTarget.style.transform="scale(1)"}>✏️</div>}
 </div>
 )}
 </div>
