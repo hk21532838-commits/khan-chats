@@ -1,7 +1,7 @@
 import{useState,useEffect,useRef}from"react";
 import{initializeApp}from"firebase/app";
 import{getAuth,createUserWithEmailAndPassword,signInWithEmailAndPassword,signOut,onAuthStateChanged,updateProfile}from"firebase/auth";
-import{getDatabase,ref,push,onValue,set,get,serverTimestamp,off}from"firebase/database";
+import{getDatabase,ref,push,onValue,set,get,serverTimestamp,off,onDisconnect}from"firebase/database";
 const FC={apiKey:"AIzaSyDJt8Pf6bC938Q9Ufxwj6xSREV0xcQf6_I",authDomain:"khan-chats-d9607.firebaseapp.com",projectId:"khan-chats-d9607",storageBucket:"khan-chats-d9607.firebasestorage.app",messagingSenderId:"646302896729",appId:"1:646302896729:web:41b2d05775c704ad43d748",databaseURL:"https://khan-chats-d9607-default-rtdb.firebaseio.com"};
 const fbApp=initializeApp(FC);
 const auth=getAuth(fbApp);
@@ -18,6 +18,7 @@ const gi=n=>{if(!n)return"?";return n.split(" ").map(w=>w[0]).join("").toUpperCa
 const cfn=n=>{const c=["#4F8EF7","#8B5CF6","#0EA5E9","#6366F1","#EC4899","#0891B2","#7C3AED","#2563EB"];if(!n)return c[0];let s=0;for(let ch of n)s+=ch.charCodeAt(0);return c[s%c.length];};
 const gid=(a,b)=>[a,b].sort().join("_");
 const tAgo=ts=>{const d=Date.now()-ts,m=Math.floor(d/60000);if(m<1)return"Just now";if(m<60)return m+"m ago";const h=Math.floor(m/60);if(h<24)return h+"h ago";return new Date(ts).toLocaleDateString("en-US",{month:"short",day:"numeric"});};
+const fLS=ts=>{if(!ts)return"";return"last seen "+dayLbl(ts)+" at "+ft(ts);};
 const fD=s=>{if(!s)return"0:00";return Math.floor(s/60)+":"+(s%60).toString().padStart(2,"0");};
 const dayLbl=ts=>{const d=new Date(ts),t=new Date();if(d.toDateString()===t.toDateString())return"Today";const y=new Date(t);y.setDate(t.getDate()-1);if(d.toDateString()===y.toDateString())return"Yesterday";return d.toLocaleDateString("en-US",{month:"long",day:"numeric"});};
 const isND=(msgs,i)=>{if(i===0)return true;return new Date(msgs[i].timestamp).toDateString()!==new Date(msgs[i-1].timestamp).toDateString();};
@@ -64,6 +65,8 @@ const[reactions,setReactions]=useState({});
 const[reactBar,setReactBar]=useState(null);
 const[otherSeen,setOtherSeen]=useState(0);
 const[readReceiptsOn,setReadReceiptsOn]=useState(true);
+const[showOnl,setShowOnl]=useState(true);const[showLS,setShowLS]=useState(true);
+const[peer,setPeer]=useState({});const[peerPrefs,setPeerPrefs]=useState({});
 
 const endRef=useRef(null);const fileRef=useRef(null);const sFRef=useRef(null);const picRef=useRef(null);
 const lvRef=useRef(null);const rvRef=useRef(null);const pcRef=useRef(null);const lsRef=useRef(null);
@@ -84,6 +87,16 @@ useEffect(()=>{
 useEffect(()=>{
   if(activeChat&&user&&msgs.length>0)markSeen(activeChat.chatId);
 },[msgs,activeChat]);
+useEffect(()=>{
+  if(!user)return;
+  const h=()=>{
+    const vis=document.visibilityState==="visible";
+    set(ref(db,"users/"+user.uid+"/online"),vis).catch(()=>{});
+    if(!vis)set(ref(db,"users/"+user.uid+"/lastSeen"),serverTimestamp()).catch(()=>{});
+  };
+  document.addEventListener("visibilitychange",h);
+  return()=>document.removeEventListener("visibilitychange",h);
+},[user]);
 
 useEffect(()=>{
   const unsub=onAuthStateChanged(auth,async u=>{
@@ -117,9 +130,18 @@ const loadAll=u=>{
   onValue(ref(db,"starred/"+u.uid),snap=>{setStarred(snap.val()||{});});
   onValue(ref(db,"disappear/"+u.uid),snap=>{setDisappear(snap.val()||{});});
   onValue(ref(db,"readReceiptsPref/"+u.uid),snap=>{setReadReceiptsOn(snap.val()===false?false:true);});
+  onValue(ref(db,"presencePrefs/"+u.uid),snap=>{const v=snap.val()||{};setShowOnl(v.online!==false);setShowLS(v.lastSeen!==false);});
+  onValue(ref(db,".info/connected"),snap=>{
+    if(snap.val()===true){
+      onDisconnect(ref(db,"users/"+u.uid+"/online")).set(false);
+      onDisconnect(ref(db,"users/"+u.uid+"/lastSeen")).set(serverTimestamp());
+      set(ref(db,"users/"+u.uid+"/online"),true).catch(()=>{});
+    }
+  });
 };
 
 const markSeen=chatId=>{if(user)set(ref(db,"chats/"+chatId+"/seen/"+user.uid),Date.now());};
+const togglePresence=async k=>{const cur=k==="online"?showOnl:showLS;await set(ref(db,"presencePrefs/"+user.uid+"/"+k),!cur);};
 const toggleReadReceipts=async()=>{const nv=!readReceiptsOn;setReadReceiptsOn(nv);await set(ref(db,"readReceiptsPref/"+user.uid),nv);};
 
 const loadContactProfile=async(contact)=>{
@@ -211,7 +233,7 @@ const login=async()=>{
   setALoad(false);
 };
 const logout=async()=>{
-  if(user)await set(ref(db,"users/"+user.uid+"/online"),false);
+  if(user){await set(ref(db,"users/"+user.uid+"/online"),false);await set(ref(db,"users/"+user.uid+"/lastSeen"),serverTimestamp());}
   await signOut(auth);setActiveChat(null);setMsgs([]);setContacts({});setLogoutC(false);
 };
 const startChat=async()=>{
@@ -232,6 +254,10 @@ const openChat=c=>{
   setUnread(p=>({...p,[c.chatId]:0}));
   off(ref(db,"chats/"+c.chatId+"/messages"));
   off(ref(db,"chats/"+c.chatId+"/seen/"+c.uid));
+  off(ref(db,"users/"+c.uid));off(ref(db,"presencePrefs/"+c.uid));
+  setPeer({});setPeerPrefs({});
+  onValue(ref(db,"users/"+c.uid),snap=>{setPeer(snap.val()||{});});
+  onValue(ref(db,"presencePrefs/"+c.uid),snap=>{setPeerPrefs(snap.val()||{});});
   onValue(ref(db,"chats/"+c.chatId+"/messages"),snap=>{
     const data=snap.val()||{};
     setMsgs(Object.values(data).sort((a,b)=>a.timestamp-b.timestamp));
@@ -343,7 +369,7 @@ if(contactProfile)return(<div style={{position:"fixed",inset:0,background:T.bg,z
 
 if(showSett)return(<div style={{position:"fixed",inset:0,background:T.bg,zIndex:9999,display:"flex",flexDirection:"column",fontFamily:"'Inter',sans-serif",color:T.text,animation:"slideR 0.3s ease"}}><style>{CSS}</style><div style={{display:"flex",alignItems:"center",padding:"15px 18px",background:T.card,gap:12,borderBottom:"1px solid "+T.border,boxShadow:"0 2px 12px rgba(0,0,0,0.3)"}}><div onClick={()=>setShowSett(false)} style={{width:38,height:38,borderRadius:12,background:T.card2,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:17,border:"1px solid "+T.border,flexShrink:0}}>←</div><div style={{fontWeight:800,fontSize:19,fontFamily:"'Poppins',sans-serif"}}>Settings</div></div><div style={{display:"flex",background:T.card,borderBottom:"1px solid "+T.border,overflowX:"auto",padding:"0 6px"}}>{[["profile","👤","Profile"],["privacy","🔒","Privacy"],["notifs","🔔","Notifs"],["lang","🌐","Lang"],["chat","🎨","Chat"],["ai","🤖","Khan AI"],["legal","📋","Legal"]].map(([tab,icon,label])=><div key={tab} onClick={()=>setSTab(tab)} style={{padding:"11px 13px",cursor:"pointer",fontSize:11,fontWeight:700,whiteSpace:"nowrap",color:sTab===tab?T.blue:T.muted,borderBottom:sTab===tab?"2.5px solid "+T.blue:"2.5px solid transparent",transition:"all 0.2s"}}>{icon+" "+label}</div>)}</div><div style={{flex:1,overflowY:"auto",padding:18,display:"flex",flexDirection:"column",gap:14}}>
 {sTab==="profile"&&<div style={{animation:"slideUp 0.3s ease"}}><div style={{background:T.grad,borderRadius:24,padding:28,textAlign:"center",marginBottom:16,boxShadow:T.shadowL,position:"relative",overflow:"hidden"}}><div style={{position:"relative",display:"inline-block",marginBottom:14}}>{pic?<img src={pic} alt="p" style={{width:96,height:96,borderRadius:"50%",objectFit:"cover",border:"3px solid rgba(255,255,255,0.4)"}} />:<div style={{width:96,height:96,borderRadius:"50%",background:"rgba(255,255,255,0.15)",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,fontSize:34,color:"#fff",border:"3px solid rgba(255,255,255,0.3)",margin:"0 auto"}}>{gi(user&&user.displayName)}</div>}<div onClick={()=>picRef.current&&picRef.current.click()} style={{position:"absolute",bottom:2,right:2,background:"#fff",borderRadius:"50%",width:30,height:30,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:14,boxShadow:"0 2px 10px rgba(0,0,0,0.25)"}}>📷</div></div><div style={{color:"#fff",fontWeight:800,fontSize:20,fontFamily:"'Poppins',sans-serif"}}>{user&&user.displayName}</div><div style={{color:"rgba(255,255,255,0.6)",fontSize:13,marginTop:4}}>{user&&user.email}</div>{uname&&<div style={{color:"rgba(255,255,255,0.45)",fontSize:12,marginTop:2}}>{"@"+uname}</div>}<input type="file" accept="image/*" ref={picRef} onChange={handlePic} style={{display:"none"}} /></div><Card style={{padding:20,marginBottom:14}}><div style={{fontSize:10,color:T.blue,fontWeight:700,marginBottom:14,textTransform:"uppercase",letterSpacing:1.5}}>Edit Profile</div>{[["Display Name",newName,setNewName,"Your name"],["Username",uname,setUname,"@username"],["Bio",bio,setBio,"About you"]].map(([l,v,fn,ph])=>(<div key={l} style={{marginBottom:12}}><div style={{fontSize:11,color:T.mutedL,fontWeight:600,marginBottom:5}}>{l}</div><Inp value={v} onChange={e=>fn(e.target.value)} placeholder={ph} /></div>))}<Btn onClick={saveProfile} style={{marginTop:6}}>Save Changes ✓</Btn></Card><Btn onClick={()=>setLogoutC(true)} v="d" style={{marginBottom:10}}>🚪 Sign Out</Btn><div onClick={()=>setDeleteC(true)} style={{padding:"12px",background:"transparent",borderRadius:14,textAlign:"center",color:"#EF4444",fontWeight:600,cursor:"pointer",border:"1px solid rgba(239,68,68,0.3)",fontSize:13}}>🗑️ Delete Account</div></div>}
-{sTab==="privacy"&&<div style={{animation:"slideUp 0.3s ease"}}>{[["Last Seen","Show last active",true,null],["Online Status","Show when online",true,null],["Read Receipts","Show read ticks",readReceiptsOn,toggleReadReceipts]].map(([t,d,v,fn],i)=>(<Card key={i} style={{padding:"15px 18px",marginBottom:10}}><div style={{display:"flex",alignItems:"center",gap:12}}><div style={{flex:1}}><div style={{fontWeight:700,fontSize:13,color:T.text}}>{t}</div><div style={{fontSize:12,color:T.muted,marginTop:2}}>{d}</div></div><Tog val={v} fn={fn||(()=>{})} /></div></Card>))}</div>}
+{sTab==="privacy"&&<div style={{animation:"slideUp 0.3s ease"}}>{[["Last Seen","Show last active",showLS,()=>togglePresence("lastSeen")],["Online Status","Show when online",showOnl,()=>togglePresence("online")],["Read Receipts","Show read ticks",readReceiptsOn,toggleReadReceipts]].map(([t,d,v,fn],i)=>(<Card key={i} style={{padding:"15px 18px",marginBottom:10}}><div style={{display:"flex",alignItems:"center",gap:12}}><div style={{flex:1}}><div style={{fontWeight:700,fontSize:13,color:T.text}}>{t}</div><div style={{fontSize:12,color:T.muted,marginTop:2}}>{d}</div></div><Tog val={v} fn={fn||(()=>{})} /></div></Card>))}</div>}
 {sTab==="notifs"&&<div style={{animation:"slideUp 0.3s ease"}}>{[["Messages","msgs"],["Updates","updates"],["Calls","calls"]].map(([t,k])=>(<Card key={k} style={{padding:"15px 18px",marginBottom:10}}><div style={{display:"flex",alignItems:"center",gap:12}}><div style={{flex:1}}><div style={{fontWeight:700,fontSize:13,color:T.text}}>{t}</div></div><Tog val={nSett[k]} fn={()=>setNSett(p=>({...p,[k]:!p[k]}))} /></div></Card>))}</div>}
 {sTab==="lang"&&<div style={{animation:"slideUp 0.3s ease"}}><Card style={{padding:16,marginBottom:12}}><div style={{fontSize:10,color:T.blue,fontWeight:700,marginBottom:10,textTransform:"uppercase",letterSpacing:1.5}}>Selected: {lang}</div><Inp value={langQ} onChange={e=>setLangQ(e.target.value)} placeholder="Search languages..." /></Card>{LANGS.filter(l=>l.toLowerCase().includes(langQ.toLowerCase())).map(l=>(<div key={l} onClick={()=>{setLang(l);setLangQ("");}} style={{padding:"12px 16px",background:lang===l?T.card2:T.card,borderRadius:13,cursor:"pointer",display:"flex",justifyContent:"space-between",marginBottom:6,border:"1.5px solid "+(lang===l?T.blue:T.border),transition:"all 0.15s"}}><span style={{color:T.text,fontSize:13,fontWeight:lang===l?700:400}}>{l}</span>{lang===l&&<span style={{color:T.blue,fontWeight:800}}>✓</span>}</div>))}</div>}
 {sTab==="chat"&&<div style={{animation:"slideUp 0.3s ease"}}><Card style={{padding:18}}><div style={{fontSize:10,color:T.blue,fontWeight:700,marginBottom:14,textTransform:"uppercase",letterSpacing:1.5}}>Chat Background</div>{[["none","No Pattern"],["dots","Dots"],["grid","Grid"]].map(([val,label])=>(<div key={val} onClick={()=>setChatBg(val)} style={{padding:"12px 16px",background:chatBg===val?T.card2:T.card,borderRadius:12,cursor:"pointer",display:"flex",justifyContent:"space-between",marginBottom:8,border:"1.5px solid "+(chatBg===val?T.blue:T.border),transition:"all 0.15s"}}><span style={{color:T.text,fontSize:13,fontWeight:chatBg===val?700:400}}>{label}</span>{chatBg===val&&<span style={{color:T.blue,fontWeight:800}}>✓</span>}</div>))}</Card></div>}
@@ -380,7 +406,7 @@ return(
 <div style={{flex:1,overflow:"hidden",cursor:"pointer"}} onClick={()=>loadContactProfile(activeChat)}>
 <div style={{fontWeight:800,fontSize:15,color:T.text,fontFamily:"'Poppins',sans-serif",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{activeChat.name}</div>
 <div style={{fontSize:10,fontWeight:600,marginTop:1,color:isTyping?"#A78BFA":T.blue}}>
-{isTyping?"typing...":"Online"}
+{isTyping?"typing...":(peer.online&&peerPrefs.online!==false?"Online":(peer.lastSeen&&peerPrefs.lastSeen!==false?fLS(peer.lastSeen):""))}
 {curD>0&&" · Timer on"}
 </div>
 </div>
