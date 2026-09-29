@@ -18,6 +18,11 @@ const gi=n=>{if(!n)return"?";return n.split(" ").map(w=>w[0]).join("").toUpperCa
 const cfn=n=>{const c=["#4F8EF7","#8B5CF6","#0EA5E9","#6366F1","#EC4899","#0891B2","#7C3AED","#2563EB"];if(!n)return c[0];let s=0;for(let ch of n)s+=ch.charCodeAt(0);return c[s%c.length];};
 const gid=(a,b)=>[a,b].sort().join("_");
 const tAgo=ts=>{const d=Date.now()-ts,m=Math.floor(d/60000);if(m<1)return"Just now";if(m<60)return m+"m ago";const h=Math.floor(m/60);if(h<24)return h+"h ago";return new Date(ts).toLocaleDateString("en-US",{month:"short",day:"numeric"});};
+const hlText=(text,q)=>{
+  if(!q)return text;
+  const parts=text.split(new RegExp("("+q.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+")","ig"));
+  return parts.map((p,i)=>p.toLowerCase()===q.toLowerCase()?<mark key={i} style={{background:"#F59E0B",color:"#080E1A",borderRadius:3,padding:"0 1px"}}>{p}</mark>:p);
+};
 const fLS=ts=>{if(!ts)return"";return"last seen "+dayLbl(ts)+" at "+ft(ts);};
 const fD=s=>{if(!s)return"0:00";return Math.floor(s/60)+":"+(s%60).toString().padStart(2,"0");};
 const dayLbl=ts=>{const d=new Date(ts),t=new Date();if(d.toDateString()===t.toDateString())return"Today";const y=new Date(t);y.setDate(t.getDate()-1);if(d.toDateString()===y.toDateString())return"Yesterday";return d.toLocaleDateString("en-US",{month:"long",day:"numeric"});};
@@ -68,12 +73,13 @@ const[readReceiptsOn,setReadReceiptsOn]=useState(true);
 const[showOnl,setShowOnl]=useState(true);const[showLS,setShowLS]=useState(true);
 const[peer,setPeer]=useState({});const[peerPrefs,setPeerPrefs]=useState({});
 const[onlineMap,setOnlineMap]=useState({});
+const[showMsgSearch,setShowMsgSearch]=useState(false);const[msgSearchQ,setMsgSearchQ]=useState("");const[matchIdx,setMatchIdx]=useState(0);
 
 const endRef=useRef(null);const fileRef=useRef(null);const sFRef=useRef(null);const picRef=useRef(null);
 const lvRef=useRef(null);const rvRef=useRef(null);const pcRef=useRef(null);const lsRef=useRef(null);
 const typTimer=useRef(null);const notifId=useRef(0);const recTimer=useRef(null);
 const msgMenuRef=useRef(null);const aiEndRef=useRef(null);const reactRef=useRef(null);
-const onlineSubs=useRef(new Set());
+const onlineSubs=useRef(new Set());const msgRefs=useRef({});
 
 useEffect(()=>{if(endRef.current)endRef.current.scrollIntoView({behavior:"smooth"});},[msgs,isTyping]);
 useEffect(()=>{if(aiEndRef.current)aiEndRef.current.scrollIntoView({behavior:"smooth"});},[aiMsgs,aiLoad,aiStream]);
@@ -419,11 +425,27 @@ return(
 </div>
 <div style={{display:"flex",gap:5,flexShrink:0}}>
 <div onClick={()=>setShowStarred(true)} style={{width:32,height:32,borderRadius:10,background:T.card2,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:13,border:"1px solid "+T.border}}>⭐</div>
+<div onClick={()=>{setShowMsgSearch(p=>!p);setMsgSearchQ("");setMatchIdx(0);}} style={{width:32,height:32,borderRadius:10,background:showMsgSearch?T.grad:T.card2,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:13,border:"1px solid "+T.border}}>🔍</div>
 <div onClick={()=>setShowDisappear(true)} style={{width:32,height:32,borderRadius:10,background:curD>0?T.grad:T.card2,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:13,border:"1px solid "+T.border}}>⏱️</div>
 <div onClick={()=>startCall("audio")} style={{width:32,height:32,borderRadius:10,background:T.card2,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:13,border:"1px solid "+T.border}}>📞</div>
 <div onClick={()=>startCall("video")} style={{width:32,height:32,borderRadius:10,background:T.card2,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:13,border:"1px solid "+T.border}}>📹</div>
 </div>
 </div>
+{showMsgSearch&&(()=>{
+const q=msgSearchQ.trim().toLowerCase();
+const matches=q?msgs.map((m,i)=>({m,i})).filter(({m})=>!m.deleted&&m.text&&m.text.toLowerCase().includes(q)).map(({i})=>Object.keys(msgs)[i]||String(i)):[];
+const curKey=matches.length?matches[((matchIdx%matches.length)+matches.length)%matches.length]:null;
+const jump=k=>{if(k&&msgRefs.current[k])msgRefs.current[k].scrollIntoView({behavior:"smooth",block:"center"});};
+return(
+<div style={{padding:"9px 14px",background:T.card2,borderBottom:"1px solid "+T.border,display:"flex",alignItems:"center",gap:8,animation:"slideDown 0.2s ease",flexShrink:0}}>
+<Inp value={msgSearchQ} onChange={e=>{setMsgSearchQ(e.target.value);setMatchIdx(0);setTimeout(()=>jump(curKey),50);}} placeholder="Search in chat..." autoFocus={true} style={{flex:1,padding:"9px 14px"}} />
+<span style={{fontSize:11,color:T.mutedL,fontWeight:600,minWidth:36,textAlign:"center"}}>{q?(matches.length?(((matchIdx%matches.length)+matches.length)%matches.length+1)+"/"+matches.length:"0/0"):""}</span>
+<div onClick={()=>{if(!matches.length)return;const n=matchIdx-1;setMatchIdx(n);jump(matches[((n%matches.length)+matches.length)%matches.length]);}} style={{width:28,height:28,borderRadius:9,background:T.card,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:12,border:"1px solid "+T.border,flexShrink:0}}>▲</div>
+<div onClick={()=>{if(!matches.length)return;const n=matchIdx+1;setMatchIdx(n);jump(matches[((n%matches.length)+matches.length)%matches.length]);}} style={{width:28,height:28,borderRadius:9,background:T.card,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:12,border:"1px solid "+T.border,flexShrink:0}}>▼</div>
+<div onClick={()=>{setShowMsgSearch(false);setMsgSearchQ("");}} style={{color:T.muted,cursor:"pointer",fontSize:16,padding:4,flexShrink:0}}>✕</div>
+</div>
+);
+})()}
 
 <div style={{flex:1,overflowY:"auto",padding:"14px 12px",display:"flex",flexDirection:"column",gap:2,position:"relative",...bgStyle()}} onClick={()=>{setMsgMenu(null);setShowEmoji(false);setReactBar(null);}}>
 {msgs.length===0&&<div style={{textAlign:"center",margin:"auto",color:T.muted,padding:40}}><div style={{fontSize:54,marginBottom:14,opacity:0.3}}>👋</div><div style={{fontSize:16,fontWeight:700,color:T.text,fontFamily:"'Poppins',sans-serif"}}>Say hello!</div><div style={{fontSize:12,marginTop:8}}>Start chatting with <strong style={{color:T.blue}}>{activeChat.name}</strong></div></div>}
@@ -445,7 +467,7 @@ const isRead=readReceiptsOn&&otherSeen>=msg.timestamp;
 return(
 <div key={i}>
 {showDay&&<div style={{textAlign:"center",margin:"10px 0 6px"}}><span style={{fontSize:11,color:T.mutedL,fontWeight:600,background:T.card2,padding:"4px 14px",borderRadius:20,border:"1px solid "+T.border}}>{dayLbl(msg.timestamp)}</span></div>}
-<div style={{display:"flex",justifyContent:isMine?"flex-end":"flex-start",marginBottom:hasReacts?14:(showAv?5:2),animation:"msgIn 0.2s ease",alignItems:"flex-end",gap:4}}>
+<div ref={el=>{msgRefs.current[msgKey]=el;}} style={{display:"flex",justifyContent:isMine?"flex-end":"flex-start",marginBottom:hasReacts?14:(showAv?5:2),animation:"msgIn 0.2s ease",alignItems:"flex-end",gap:4}}>
 {!isMine&&<div style={{width:28,height:28,flexShrink:0,alignSelf:"flex-end",marginBottom:2}}>{showAv&&<div style={{width:28,height:28,borderRadius:9,background:cfn(msg.senderName),display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:9,color:"#fff"}}>{gi(msg.senderName)}</div>}</div>}
 
 {isMine&&!isDeleted&&(
@@ -459,7 +481,7 @@ return(
 {!isMine&&showAv&&!isDeleted&&<div style={{fontSize:10,color:cfn(msg.senderName),fontWeight:700,marginBottom:4}}>{msg.senderName}</div>}
 {isDeleted?<div style={{fontSize:13,color:T.muted,fontStyle:"italic",display:"flex",alignItems:"center",gap:6}}><span>🚫</span>Deleted</div>:<>
 {msg.image&&<div style={{position:"relative"}}><img src={msg.image} alt="s" onClick={e=>{e.stopPropagation();setPreviewImg(msg.image);}} style={{maxWidth:200,maxHeight:200,borderRadius:14,display:"block",cursor:"pointer",objectFit:"cover"}} /><div style={{position:"absolute",bottom:8,right:8,background:"rgba(0,0,0,0.65)",borderRadius:10,padding:"2px 8px",display:"flex",alignItems:"center",gap:4}}><span style={{fontSize:10,color:"rgba(255,255,255,0.9)"}}>{ft(msg.timestamp)}</span>{isMine&&<span style={{fontSize:11,color:isRead?"#60A5FA":"rgba(255,255,255,0.6)"}}>✓✓</span>}</div></div>}
-{msg.text&&!msg.image&&<p style={{margin:0,fontSize:14,lineHeight:1.65,color:T.text,wordBreak:"break-word",whiteSpace:"pre-wrap"}}>{msg.text}</p>}
+{msg.text&&!msg.image&&<p style={{margin:0,fontSize:14,lineHeight:1.65,color:T.text,wordBreak:"break-word",whiteSpace:"pre-wrap"}}>{msgSearchQ.trim()?hlText(msg.text,msgSearchQ.trim()):msg.text}</p>}
 </>}
 {!msg.image&&!isDeleted&&<div style={{display:"flex",justifyContent:"flex-end",alignItems:"center",gap:3,marginTop:4}}><span style={{fontSize:10,color:isMine?"rgba(255,255,255,0.4)":T.muted}}>{ft(msg.timestamp)}</span>{isMine&&<span style={{fontSize:12,color:isRead?"#60A5FA":"rgba(255,255,255,0.45)"}}>✓✓</span>}</div>}
 </div>
