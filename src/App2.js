@@ -206,7 +206,7 @@ const askAI=async()=>{
   setAiIn("");setAiLoad(true);setAiErr("");setAiStream("");
   const hist=aiMsgs.slice(-8).map(m=>({role:m.role==="user"?"user":"model",parts:[{text:m.text}]}));
   try{
-    const res=await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key="+GKEY,{
+    const res=await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key="+GKEY,{
       method:"POST",headers:{"Content-Type":"application/json"},
       body:JSON.stringify({
         system_instruction:{parts:[{text:"You are Khan AI, a friendly helpful assistant for Khan Chats by Hamza Khan. Speak English and Urdu. Be warm and concise."}]},
